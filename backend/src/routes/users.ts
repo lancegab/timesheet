@@ -18,6 +18,7 @@ users.get("/", adminMiddleware, async (c) => {
       fullName: schema.users.fullName,
       role: schema.users.role,
       status: schema.users.status,
+      employmentType: schema.users.employmentType,
       lastLoginAt: schema.users.lastLoginAt,
       createdAt: schema.users.createdAt,
     })
@@ -29,7 +30,7 @@ users.get("/", adminMiddleware, async (c) => {
 // POST /users - create user (admin only)
 users.post("/", adminMiddleware, async (c) => {
   const currentUser = c.get("user");
-  const { email, fullName, role, password } = await c.req.json();
+  const { email, fullName, role, password, employmentType } = await c.req.json();
 
   if (!email || !fullName || !password) {
     return c.json({ error: "Email, full name, and password are required" }, 400);
@@ -53,12 +54,13 @@ users.post("/", adminMiddleware, async (c) => {
     email,
     fullName,
     role: role || "MEMBER",
+    employmentType: employmentType || "FULL_TIME",
     passwordHash,
     mustChangePassword: true,
     createdBy: currentUser.userId,
   });
 
-  return c.json({ id, email, fullName, role: role || "MEMBER" }, 201);
+  return c.json({ id, email, fullName, role: role || "MEMBER", employmentType: employmentType || "FULL_TIME" }, 201);
 });
 
 // GET /users/:id
@@ -71,6 +73,7 @@ users.get("/:id", adminMiddleware, async (c) => {
       fullName: schema.users.fullName,
       role: schema.users.role,
       status: schema.users.status,
+      employmentType: schema.users.employmentType,
       lastLoginAt: schema.users.lastLoginAt,
       createdAt: schema.users.createdAt,
     })
@@ -85,12 +88,13 @@ users.get("/:id", adminMiddleware, async (c) => {
 // PUT /users/:id - update user (admin only)
 users.put("/:id", adminMiddleware, async (c) => {
   const id = c.req.param("id");
-  const { fullName, role, status } = await c.req.json();
+  const { fullName, role, status, employmentType } = await c.req.json();
 
   const updates: Record<string, any> = {};
   if (fullName) updates.fullName = fullName;
   if (role) updates.role = role;
   if (status) updates.status = status;
+  if (employmentType) updates.employmentType = employmentType;
 
   if (Object.keys(updates).length === 0) {
     return c.json({ error: "No fields to update" }, 400);
@@ -128,6 +132,7 @@ users.get("/me/profile", async (c) => {
       fullName: schema.users.fullName,
       role: schema.users.role,
       status: schema.users.status,
+      employmentType: schema.users.employmentType,
       lastLoginAt: schema.users.lastLoginAt,
     })
     .from(schema.users)

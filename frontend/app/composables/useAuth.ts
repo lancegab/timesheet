@@ -3,6 +3,7 @@ interface User {
   email: string
   fullName: string
   role: 'MEMBER' | 'ADMIN'
+  employmentType: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT'
   mustChangePassword: boolean
 }
 

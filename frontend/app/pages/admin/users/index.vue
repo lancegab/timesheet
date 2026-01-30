@@ -15,6 +15,7 @@
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Login</th>
             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -28,6 +29,11 @@
               <span class="px-2 py-0.5 rounded-full text-xs font-medium"
                 :class="u.role === 'ADMIN' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'">
                 {{ u.role }}
+              </span>
+            </td>
+            <td class="px-4 py-3 text-sm">
+              <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                {{ u.employmentType === 'FULL_TIME' ? 'Full-time' : u.employmentType === 'PART_TIME' ? 'Part-time' : 'Contract' }}
               </span>
             </td>
             <td class="px-4 py-3 text-sm">
@@ -70,6 +76,14 @@
             <select v-model="form.role" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
               <option value="MEMBER">Member</option>
               <option value="ADMIN">Admin</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
+            <select v-model="form.employmentType" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+              <option value="FULL_TIME">Full-time</option>
+              <option value="PART_TIME">Part-time</option>
+              <option value="CONTRACT">Contract</option>
             </select>
           </div>
           <div v-if="!editing">
@@ -124,7 +138,7 @@ const showResetPw = ref(false)
 const resetTarget = ref<any>(null)
 const resetNewPw = ref('')
 
-const form = reactive({ email: '', fullName: '', role: 'MEMBER', password: '' })
+const form = reactive({ email: '', fullName: '', role: 'MEMBER', employmentType: 'FULL_TIME', password: '' })
 
 async function loadUsers() {
   users.value = await apiFetch<any[]>('/users')
@@ -135,6 +149,7 @@ function editUser(u: any) {
   form.email = u.email
   form.fullName = u.fullName
   form.role = u.role
+  form.employmentType = u.employmentType || 'FULL_TIME'
   showForm.value = true
 }
 
@@ -145,6 +160,7 @@ function closeForm() {
   form.email = ''
   form.fullName = ''
   form.role = 'MEMBER'
+  form.employmentType = 'FULL_TIME'
   form.password = ''
 }
 
@@ -154,7 +170,7 @@ async function saveUser() {
     if (editing.value) {
       await apiFetch(`/users/${editing.value}`, {
         method: 'PUT',
-        body: JSON.stringify({ fullName: form.fullName, role: form.role }),
+        body: JSON.stringify({ fullName: form.fullName, role: form.role, employmentType: form.employmentType }),
       })
     } else {
       await apiFetch('/users', {

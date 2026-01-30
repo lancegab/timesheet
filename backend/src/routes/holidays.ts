@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { db, schema } from "../db/index.js";
 import { authMiddleware, adminMiddleware } from "../middleware/auth.js";
@@ -87,30 +87,55 @@ holidays.post("/:id/assign", adminMiddleware, async (c) => {
   const user = c.get("user");
   const { userIds, allActive } = await c.req.json();
 
-  let targetUserIds: string[] = userIds || [];
+  // Get the holiday to know its base hours
+  const [holiday] = await db
+    .select()
+    .from(schema.paidHolidays)
+    .where(eq(schema.paidHolidays.id, holidayId))
+    .limit(1);
 
-  if (allActive) {
-    const activeUsers = await db
-      .select({ id: schema.users.id })
-      .from(schema.users)
-      .where(eq(schema.users.status, "ACTIVE"));
-    targetUserIds = activeUsers.map((u) => u.id);
+  if (!holiday) {
+    return c.json({ error: "Holiday not found" }, 404);
   }
 
-  for (const userId of targetUserIds) {
+  const baseHours = Number(holiday.hours);
+
+  let targetUsers: { id: string; employmentType: string }[] = [];
+
+  if (allActive) {
+    targetUsers = await db
+      .select({ id: schema.users.id, employmentType: schema.users.employmentType })
+      .from(schema.users)
+      .where(eq(schema.users.status, "ACTIVE"));
+  } else if (userIds?.length) {
+    targetUsers = await db
+      .select({ id: schema.users.id, employmentType: schema.users.employmentType })
+      .from(schema.users)
+      .where(sql`${schema.users.id} IN (${sql.join(userIds.map((id: string) => sql`${id}`), sql`, `)})`);
+  }
+
+  let assignedCount = 0;
+  for (const u of targetUsers) {
+    // CONTRACT employees get 0 hours - skip
+    if (u.employmentType === "CONTRACT") continue;
+
+    const assignHours = u.employmentType === "PART_TIME" ? baseHours / 2 : baseHours;
+
     try {
       await db.insert(schema.paidHolidayAssignments).values({
         id: uuid(),
         paidHolidayId: holidayId,
-        userId,
+        userId: u.id,
+        hours: String(assignHours),
         assignedBy: user.userId,
       });
+      assignedCount++;
     } catch {
       // Ignore duplicate
     }
   }
 
-  return c.json({ message: `Assigned to ${targetUserIds.length} members` });
+  return c.json({ message: `Assigned to ${assignedCount} members` });
 });
 
 // DELETE /holidays/:id/assign/:userId
@@ -139,6 +164,8 @@ holidays.get("/:id/assignments", adminMiddleware, async (c) => {
       userId: schema.users.id,
       fullName: schema.users.fullName,
       email: schema.users.email,
+      employmentType: schema.users.employmentType,
+      hours: schema.paidHolidayAssignments.hours,
       assignedAt: schema.paidHolidayAssignments.assignedAt,
     })
     .from(schema.paidHolidayAssignments)

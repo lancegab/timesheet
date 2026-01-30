@@ -77,7 +77,7 @@ reports.get("/summary", async (c) => {
 
   const [holidayTotal] = await db
     .select({
-      totalHours: sql<string>`COALESCE(SUM(${schema.paidHolidays.hours}), 0)`,
+      totalHours: sql<string>`COALESCE(SUM(${schema.paidHolidayAssignments.hours}), 0)`,
     })
     .from(schema.paidHolidayAssignments)
     .innerJoin(

@@ -45,10 +45,14 @@ timeEntries.get("/", async (c) => {
       date: schema.timeEntries.date,
       hours: schema.timeEntries.hours,
       description: schema.timeEntries.description,
+      addedBy: schema.timeEntries.addedBy,
+      addedByNote: schema.timeEntries.addedByNote,
+      addedByName: schema.users.fullName,
       createdAt: schema.timeEntries.createdAt,
     })
     .from(schema.timeEntries)
     .leftJoin(schema.projects, eq(schema.timeEntries.projectId, schema.projects.id))
+    .leftJoin(schema.users, eq(schema.timeEntries.addedBy, schema.users.id))
     .where(and(...conditions))
     .orderBy(schema.timeEntries.date);
 
@@ -71,6 +75,10 @@ timeEntries.post("/", async (c) => {
   }
 
   const type = entryType || "REGULAR";
+
+  if (type === "PAID_LEAVE" || type === "APPROVED_LEAVE") {
+    return c.json({ error: "Leave entries must be created through the leave request system" }, 400);
+  }
 
   if (type === "REGULAR" && !projectId) {
     return c.json({ error: "Project is required for regular entries" }, 400);

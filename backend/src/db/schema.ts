@@ -21,6 +21,7 @@ export const users = mysqlTable(
     passwordHash: varchar("password_hash", { length: 255 }).notNull(),
     fullName: varchar("full_name", { length: 255 }).notNull(),
     role: mysqlEnum("role", ["MEMBER", "ADMIN"]).notNull().default("MEMBER"),
+    employmentType: mysqlEnum("employment_type", ["FULL_TIME", "PART_TIME", "CONTRACT"]).notNull().default("FULL_TIME"),
     status: mysqlEnum("status", ["ACTIVE", "INACTIVE", "LOCKED"]).notNull().default("ACTIVE"),
     mustChangePassword: boolean("must_change_password").notNull().default(true),
     failedLoginAttempts: int("failed_login_attempts").notNull().default(0),
@@ -107,7 +108,9 @@ export const timeEntries = mysqlTable(
     id: varchar("id", { length: 36 }).primaryKey(),
     userId: varchar("user_id", { length: 36 }).notNull(),
     projectId: varchar("project_id", { length: 36 }),
-    entryType: mysqlEnum("entry_type", ["REGULAR", "PAID_LEAVE"]).notNull().default("REGULAR"),
+    entryType: mysqlEnum("entry_type", ["REGULAR", "PAID_LEAVE", "APPROVED_LEAVE"]).notNull().default("REGULAR"),
+    addedBy: varchar("added_by", { length: 36 }),
+    addedByNote: varchar("added_by_note", { length: 500 }),
     date: date("date").notNull(),
     hours: decimal("hours", { precision: 5, scale: 2 }).notNull(),
     description: text("description"),
@@ -139,6 +142,7 @@ export const paidHolidayAssignments = mysqlTable(
     id: varchar("id", { length: 36 }).primaryKey(),
     paidHolidayId: varchar("paid_holiday_id", { length: 36 }).notNull(),
     userId: varchar("user_id", { length: 36 }).notNull(),
+    hours: decimal("hours", { precision: 5, scale: 2 }).notNull().default("8"),
     assignedBy: varchar("assigned_by", { length: 36 }).notNull(),
     assignedAt: datetime("assigned_at").notNull().$defaultFn(() => new Date()),
   },
@@ -177,6 +181,45 @@ export const projectMembers = mysqlTable(
   ]
 );
 
+export const leaveRequests = mysqlTable(
+  "leave_requests",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    date: date("date").notNull(),
+    hours: decimal("hours", { precision: 5, scale: 2 }).notNull().default("8"),
+    reason: text("reason"),
+    status: mysqlEnum("status", ["PENDING", "APPROVED", "REJECTED"]).notNull().default("PENDING"),
+    reviewedBy: varchar("reviewed_by", { length: 36 }),
+    reviewedAt: datetime("reviewed_at"),
+    reviewNote: text("review_note"),
+    addedBy: varchar("added_by", { length: 36 }),
+    createdAt: datetime("created_at").notNull().$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("lr_user_idx").on(table.userId),
+    index("lr_status_idx").on(table.status),
+  ]
+);
+
+export const clockSessions = mysqlTable(
+  "clock_sessions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    clockInAt: datetime("clock_in_at").notNull(),
+    clockOutAt: datetime("clock_out_at"),
+    description: text("description"),
+    projectId: varchar("project_id", { length: 36 }),
+    autoClockOut: boolean("auto_clock_out").notNull().default(false),
+    timeEntryId: varchar("time_entry_id", { length: 36 }),
+    createdAt: datetime("created_at").notNull().$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("cs_user_idx").on(table.userId),
+  ]
+);
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   timeEntries: many(timeEntries),
@@ -212,4 +255,13 @@ export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
 export const budgetAdjustmentsRelations = relations(budgetAdjustments, ({ one }) => ({
   project: one(projects, { fields: [budgetAdjustments.projectId], references: [projects.id] }),
   adjustedByUser: one(users, { fields: [budgetAdjustments.adjustedBy], references: [users.id] }),
+}));
+
+export const leaveRequestsRelations = relations(leaveRequests, ({ one }) => ({
+  user: one(users, { fields: [leaveRequests.userId], references: [users.id] }),
+}));
+
+export const clockSessionsRelations = relations(clockSessions, ({ one }) => ({
+  user: one(users, { fields: [clockSessions.userId], references: [users.id] }),
+  project: one(projects, { fields: [clockSessions.projectId], references: [projects.id] }),
 }));

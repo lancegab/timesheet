@@ -79,8 +79,11 @@
             <td class="px-4 py-3 text-sm text-gray-900">{{ entry.date }}</td>
             <td class="px-4 py-3 text-sm">
               <span class="px-2 py-0.5 rounded-full text-xs font-medium"
-                :class="entry.entryType === 'PAID_LEAVE' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'">
-                {{ entry.entryType === 'PAID_LEAVE' ? 'Leave' : 'Regular' }}
+                :class="entry.entryType === 'PAID_LEAVE' ? 'bg-amber-100 text-amber-700' : entry.entryType === 'APPROVED_LEAVE' ? 'bg-green-100 text-green-700' : 'bg-indigo-100 text-indigo-700'">
+                {{ entry.entryType === 'PAID_LEAVE' ? 'Leave' : entry.entryType === 'APPROVED_LEAVE' ? 'Approved Leave' : 'Regular' }}
+              </span>
+              <span v-if="entry.addedByName" class="ml-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                by {{ entry.addedByName }}
               </span>
             </td>
             <td class="px-4 py-3 text-sm text-gray-700">{{ entry.projectName || '-' }}</td>
@@ -111,7 +114,6 @@
             <select v-model="entryForm.entryType"
               class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
               <option value="REGULAR">Regular</option>
-              <option value="PAID_LEAVE">Paid Leave</option>
             </select>
           </div>
           <div>
@@ -165,6 +167,8 @@ interface TimeEntry {
   date: string
   hours: string
   description: string | null
+  addedBy: string | null
+  addedByName: string | null
   editable: boolean
 }
 
@@ -200,7 +204,7 @@ const regularHours = computed(() => {
 })
 
 const leaveHours = computed(() => {
-  return entries.value.filter(e => e.entryType === 'PAID_LEAVE').reduce((sum, e) => sum + Number(e.hours), 0).toFixed(1)
+  return entries.value.filter(e => e.entryType === 'PAID_LEAVE' || e.entryType === 'APPROVED_LEAVE').reduce((sum, e) => sum + Number(e.hours), 0).toFixed(1)
 })
 
 async function loadEntries() {

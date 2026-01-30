@@ -69,7 +69,11 @@
 
         <div class="mb-4 space-y-2">
           <div v-for="a in assignments" :key="a.userId" class="flex justify-between items-center text-sm border-b pb-2">
-            <span class="text-gray-900">{{ a.fullName }}</span>
+            <div>
+              <span class="text-gray-900">{{ a.fullName }}</span>
+              <span class="ml-2 text-xs text-gray-500">{{ a.hours }}h</span>
+              <span v-if="a.employmentType" class="ml-1 text-xs text-gray-400">({{ a.employmentType === 'FULL_TIME' ? 'FT' : a.employmentType === 'PART_TIME' ? 'PT' : 'C' }})</span>
+            </div>
             <button @click="unassign(a.userId)" class="text-red-600 hover:text-red-800 text-xs">Remove</button>
           </div>
           <div v-if="!assignments.length" class="text-sm text-gray-400">No members assigned</div>

@@ -111,6 +111,7 @@ auth.post("/login", async (c) => {
       email: user.email,
       fullName: user.fullName,
       role: user.role,
+      employmentType: user.employmentType,
       mustChangePassword: user.mustChangePassword,
     },
   });
