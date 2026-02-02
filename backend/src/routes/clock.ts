@@ -12,9 +12,9 @@ const MAX_CLOCK_HOURS = 8;
 
 function calcHours(start: Date, end: Date): number {
   let h = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-  h = Math.round(h * 4) / 4; // round to 0.25
+  h = Math.round(h * 12) / 12; // round to 5 minutes (1/12 hour)
   h = Math.min(h, MAX_CLOCK_HOURS);
-  h = Math.max(h, 0.25);
+  h = Math.max(h, 1 / 12); // minimum 5 minutes
   return h;
 }
 
