@@ -10,13 +10,30 @@ clock.use("*", authMiddleware);
 
 const MAX_CLOCK_HOURS = 8;
 
-// GET /clock/status - returns active session + elapsed time
+function calcHours(start: Date, end: Date): number {
+  let h = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+  h = Math.round(h * 4) / 4; // round to 0.25
+  h = Math.min(h, MAX_CLOCK_HOURS);
+  h = Math.max(h, 0.25);
+  return h;
+}
+
+// GET /clock/status - returns active session with project info
 clock.get("/status", async (c) => {
   const user = c.get("user");
 
   const [session] = await db
-    .select()
+    .select({
+      id: schema.clockSessions.id,
+      clockInAt: schema.clockSessions.clockInAt,
+      clockOutAt: schema.clockSessions.clockOutAt,
+      projectId: schema.clockSessions.projectId,
+      projectName: schema.projects.name,
+      segmentStartAt: schema.clockSessions.segmentStartAt,
+      autoClockOut: schema.clockSessions.autoClockOut,
+    })
     .from(schema.clockSessions)
+    .leftJoin(schema.projects, eq(schema.clockSessions.projectId, schema.projects.id))
     .where(
       and(
         eq(schema.clockSessions.userId, user.userId),
@@ -29,33 +46,30 @@ clock.get("/status", async (c) => {
     return c.json({ active: false });
   }
 
-  // Check if stale (>8h)
-  const elapsed = (Date.now() - new Date(session.clockInAt).getTime()) / (1000 * 60 * 60);
-  if (elapsed >= MAX_CLOCK_HOURS) {
-    // Auto clock-out
-    const clockOutAt = new Date(new Date(session.clockInAt).getTime() + MAX_CLOCK_HOURS * 60 * 60 * 1000);
-    const hours = MAX_CLOCK_HOURS;
+  const segStart = session.segmentStartAt || session.clockInAt;
+  const totalElapsed = (Date.now() - new Date(session.clockInAt).getTime()) / (1000 * 60 * 60);
 
-    // Create time entry
+  // Auto clock-out if total session > 8h
+  if (totalElapsed >= MAX_CLOCK_HOURS) {
+    const clockOutAt = new Date(new Date(session.clockInAt).getTime() + MAX_CLOCK_HOURS * 60 * 60 * 1000);
+    const segmentHours = calcHours(new Date(segStart), clockOutAt);
+
+    // Create time entry for final segment
     const entryId = uuid();
-    const entryDate = new Date(session.clockInAt).toISOString().split("T")[0];
+    const entryDate = new Date(segStart).toISOString().split("T")[0];
     await db.insert(schema.timeEntries).values({
       id: entryId,
       userId: user.userId,
+      projectId: session.projectId,
       entryType: "REGULAR",
       date: entryDate as any,
-      hours: String(hours),
-      description: "Auto clock-out - please update project and description",
+      hours: String(segmentHours),
+      description: "Auto clock-out - please update description",
     });
 
     await db
       .update(schema.clockSessions)
-      .set({
-        clockOutAt,
-        autoClockOut: true,
-        timeEntryId: entryId,
-        description: "Auto clock-out - please update project and description",
-      })
+      .set({ clockOutAt, autoClockOut: true, timeEntryId: entryId })
       .where(eq(schema.clockSessions.id, session.id));
 
     return c.json({
@@ -65,7 +79,7 @@ clock.get("/status", async (c) => {
         clockInAt: session.clockInAt,
         clockOutAt,
         timeEntryId: entryId,
-        hours,
+        hours: segmentHours,
       },
     });
   }
@@ -75,16 +89,24 @@ clock.get("/status", async (c) => {
     session: {
       id: session.id,
       clockInAt: session.clockInAt,
+      projectId: session.projectId,
+      projectName: session.projectName,
+      segmentStartAt: segStart,
       elapsedSeconds: Math.floor((Date.now() - new Date(session.clockInAt).getTime()) / 1000),
+      segmentSeconds: Math.floor((Date.now() - new Date(segStart).getTime()) / 1000),
     },
   });
 });
 
-// POST /clock/in - start new session
+// POST /clock/in - requires projectId
 clock.post("/in", async (c) => {
   const user = c.get("user");
+  const { projectId } = await c.req.json();
 
-  // Check no active session
+  if (!projectId) {
+    return c.json({ error: "Project is required" }, 400);
+  }
+
   const [existing] = await db
     .select()
     .from(schema.clockSessions)
@@ -106,18 +128,74 @@ clock.post("/in", async (c) => {
     id,
     userId: user.userId,
     clockInAt: now,
+    projectId,
+    segmentStartAt: now,
   });
 
-  return c.json({ id, clockInAt: now }, 201);
+  return c.json({ id, clockInAt: now, projectId }, 201);
 });
 
-// POST /clock/out - end session, requires description + projectId
+// POST /clock/switch - switch project, finalize previous segment
+clock.post("/switch", async (c) => {
+  const user = c.get("user");
+  const { projectId, description } = await c.req.json();
+
+  if (!projectId || !description) {
+    return c.json({ error: "New projectId and description for current work are required" }, 400);
+  }
+
+  const [session] = await db
+    .select()
+    .from(schema.clockSessions)
+    .where(
+      and(
+        eq(schema.clockSessions.userId, user.userId),
+        isNull(schema.clockSessions.clockOutAt)
+      )
+    )
+    .limit(1);
+
+  if (!session) {
+    return c.json({ error: "No active clock session" }, 400);
+  }
+
+  if (session.projectId === projectId) {
+    return c.json({ error: "Already working on this project" }, 400);
+  }
+
+  const now = new Date();
+  const segStart = session.segmentStartAt || session.clockInAt;
+  const hours = calcHours(new Date(segStart), now);
+
+  // Create time entry for the completed segment
+  const entryId = uuid();
+  const entryDate = new Date(segStart).toISOString().split("T")[0];
+  await db.insert(schema.timeEntries).values({
+    id: entryId,
+    userId: user.userId,
+    projectId: session.projectId,
+    entryType: "REGULAR",
+    date: entryDate as any,
+    hours: String(hours),
+    description,
+  });
+
+  // Update session to new project and reset segment
+  await db
+    .update(schema.clockSessions)
+    .set({ projectId, segmentStartAt: now })
+    .where(eq(schema.clockSessions.id, session.id));
+
+  return c.json({ message: "Project switched", timeEntryId: entryId, hours });
+});
+
+// POST /clock/out - finalize last segment and close session
 clock.post("/out", async (c) => {
   const user = c.get("user");
-  const { description, projectId } = await c.req.json();
+  const { description } = await c.req.json();
 
-  if (!description || !projectId) {
-    return c.json({ error: "Description and project are required" }, 400);
+  if (!description) {
+    return c.json({ error: "Description is required" }, 400);
   }
 
   const [session] = await db
@@ -136,24 +214,19 @@ clock.post("/out", async (c) => {
   }
 
   const now = new Date();
-  let elapsedHours = (now.getTime() - new Date(session.clockInAt).getTime()) / (1000 * 60 * 60);
-  // Round to nearest 0.25h
-  elapsedHours = Math.round(elapsedHours * 4) / 4;
-  // Cap at 8h
-  elapsedHours = Math.min(elapsedHours, MAX_CLOCK_HOURS);
-  // Minimum 0.25h
-  elapsedHours = Math.max(elapsedHours, 0.25);
+  const segStart = session.segmentStartAt || session.clockInAt;
+  const hours = calcHours(new Date(segStart), now);
 
-  // Create time entry
+  // Create time entry for final segment
   const entryId = uuid();
-  const entryDate = new Date(session.clockInAt).toISOString().split("T")[0];
+  const entryDate = new Date(segStart).toISOString().split("T")[0];
   await db.insert(schema.timeEntries).values({
     id: entryId,
     userId: user.userId,
-    projectId,
+    projectId: session.projectId,
     entryType: "REGULAR",
     date: entryDate as any,
-    hours: String(elapsedHours),
+    hours: String(hours),
     description,
   });
 
@@ -162,15 +235,14 @@ clock.post("/out", async (c) => {
     .set({
       clockOutAt: now,
       description,
-      projectId,
       timeEntryId: entryId,
     })
     .where(eq(schema.clockSessions.id, session.id));
 
-  return c.json({ message: "Clocked out", hours: elapsedHours, timeEntryId: entryId });
+  return c.json({ message: "Clocked out", hours, timeEntryId: entryId });
 });
 
-// GET /clock/history - recent sessions
+// GET /clock/history
 clock.get("/history", async (c) => {
   const user = c.get("user");
 
@@ -194,7 +266,7 @@ clock.get("/history", async (c) => {
   return c.json(sessions);
 });
 
-// Auto clock-out function for stale sessions (called from background interval)
+// Auto clock-out stale sessions
 export async function autoClockOutStale() {
   const staleThreshold = new Date(Date.now() - MAX_CLOCK_HOURS * 60 * 60 * 1000);
 
@@ -210,26 +282,24 @@ export async function autoClockOutStale() {
 
   for (const session of staleSessions) {
     const clockOutAt = new Date(new Date(session.clockInAt).getTime() + MAX_CLOCK_HOURS * 60 * 60 * 1000);
+    const segStart = session.segmentStartAt || session.clockInAt;
+    const hours = calcHours(new Date(segStart), clockOutAt);
 
     const entryId = uuid();
-    const entryDate = new Date(session.clockInAt).toISOString().split("T")[0];
+    const entryDate = new Date(segStart).toISOString().split("T")[0];
     await db.insert(schema.timeEntries).values({
       id: entryId,
       userId: session.userId,
+      projectId: session.projectId,
       entryType: "REGULAR",
       date: entryDate as any,
-      hours: String(MAX_CLOCK_HOURS),
-      description: "Auto clock-out - please update project and description",
+      hours: String(hours),
+      description: "Auto clock-out - please update description",
     });
 
     await db
       .update(schema.clockSessions)
-      .set({
-        clockOutAt,
-        autoClockOut: true,
-        timeEntryId: entryId,
-        description: "Auto clock-out - please update project and description",
-      })
+      .set({ clockOutAt, autoClockOut: true, timeEntryId: entryId })
       .where(eq(schema.clockSessions.id, session.id));
   }
 

@@ -211,6 +211,7 @@ export const clockSessions = mysqlTable(
     clockOutAt: datetime("clock_out_at"),
     description: text("description"),
     projectId: varchar("project_id", { length: 36 }),
+    segmentStartAt: datetime("segment_start_at"),
     autoClockOut: boolean("auto_clock_out").notNull().default(false),
     timeEntryId: varchar("time_entry_id", { length: 36 }),
     createdAt: datetime("created_at").notNull().$defaultFn(() => new Date()),

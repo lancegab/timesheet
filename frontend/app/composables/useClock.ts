@@ -1,7 +1,11 @@
 interface ClockSession {
   id: string
   clockInAt: string
+  projectId: string
+  projectName: string
+  segmentStartAt: string
   elapsedSeconds: number
+  segmentSeconds: number
 }
 
 interface AutoClosedSession {
@@ -18,6 +22,7 @@ export function useClock() {
   const active = useState<boolean>('clock_active', () => false)
   const session = useState<ClockSession | null>('clock_session', () => null)
   const elapsed = useState<number>('clock_elapsed', () => 0)
+  const segmentElapsed = useState<number>('clock_segment_elapsed', () => 0)
   const autoClosedSession = useState<AutoClosedSession | null>('clock_auto_closed', () => null)
 
   let timerInterval: ReturnType<typeof setInterval> | null = null
@@ -26,6 +31,7 @@ export function useClock() {
     stopTimer()
     timerInterval = setInterval(() => {
       elapsed.value++
+      segmentElapsed.value++
     }, 1000)
   }
 
@@ -50,11 +56,13 @@ export function useClock() {
         active.value = true
         session.value = data.session
         elapsed.value = data.session.elapsedSeconds
+        segmentElapsed.value = data.session.segmentSeconds
         startTimer()
       } else {
         active.value = false
         session.value = null
         elapsed.value = 0
+        segmentElapsed.value = 0
         stopTimer()
         if (data.autoClosedSession) {
           autoClosedSession.value = data.autoClosedSession
@@ -65,22 +73,45 @@ export function useClock() {
     }
   }
 
-  async function clockIn() {
-    const data = await apiFetch<any>('/clock/in', { method: 'POST' })
+  async function clockIn(projectId: string) {
+    const data = await apiFetch<any>('/clock/in', {
+      method: 'POST',
+      body: JSON.stringify({ projectId }),
+    })
     active.value = true
-    session.value = { id: data.id, clockInAt: data.clockInAt, elapsedSeconds: 0 }
+    session.value = {
+      id: data.id,
+      clockInAt: data.clockInAt,
+      projectId: data.projectId,
+      projectName: '',
+      segmentStartAt: data.clockInAt,
+      elapsedSeconds: 0,
+      segmentSeconds: 0,
+    }
     elapsed.value = 0
+    segmentElapsed.value = 0
     startTimer()
   }
 
-  async function clockOut(projectId: string, description: string) {
-    const data = await apiFetch<any>('/clock/out', {
+  async function switchProject(projectId: string, description: string) {
+    const data = await apiFetch<any>('/clock/switch', {
       method: 'POST',
       body: JSON.stringify({ projectId, description }),
+    })
+    // Refresh status to get new project name
+    await checkStatus()
+    return data
+  }
+
+  async function clockOut(description: string) {
+    const data = await apiFetch<any>('/clock/out', {
+      method: 'POST',
+      body: JSON.stringify({ description }),
     })
     active.value = false
     session.value = null
     elapsed.value = 0
+    segmentElapsed.value = 0
     stopTimer()
     return data
   }
@@ -93,10 +124,12 @@ export function useClock() {
     active,
     session,
     elapsed,
+    segmentElapsed,
     autoClosedSession,
     formatElapsed,
     checkStatus,
     clockIn,
+    switchProject,
     clockOut,
     dismissAutoClosed,
   }
