@@ -44,6 +44,7 @@ timeEntries.get("/", async (c) => {
       entryType: schema.timeEntries.entryType,
       date: schema.timeEntries.date,
       hours: schema.timeEntries.hours,
+      workType: schema.timeEntries.workType,
       description: schema.timeEntries.description,
       addedBy: schema.timeEntries.addedBy,
       addedByNote: schema.timeEntries.addedByNote,
@@ -68,7 +69,7 @@ timeEntries.get("/", async (c) => {
 // POST /time-entries
 timeEntries.post("/", async (c) => {
   const user = c.get("user");
-  const { projectId, entryType, date, hours, description } = await c.req.json();
+  const { projectId, entryType, date, hours, description, workType } = await c.req.json();
 
   if (!date || !hours) {
     return c.json({ error: "Date and hours are required" }, 400);
@@ -118,6 +119,7 @@ timeEntries.post("/", async (c) => {
     entryType: type,
     date,
     hours: String(hours),
+    workType: workType || "DEVELOPMENT",
     description: description || null,
   });
 
@@ -128,7 +130,7 @@ timeEntries.post("/", async (c) => {
 timeEntries.put("/:id", async (c) => {
   const user = c.get("user");
   const id = c.req.param("id");
-  const { projectId, hours, description } = await c.req.json();
+  const { projectId, hours, description, workType } = await c.req.json();
 
   const [entry] = await db
     .select()
@@ -146,6 +148,7 @@ timeEntries.put("/:id", async (c) => {
   if (projectId) updates.projectId = projectId;
   if (hours !== undefined) updates.hours = String(hours);
   if (description !== undefined) updates.description = description;
+  if (workType) updates.workType = workType;
 
   await db.update(schema.timeEntries).set(updates).where(eq(schema.timeEntries.id, id));
   return c.json({ message: "Entry updated" });

@@ -32,6 +32,7 @@ adminTimeEntries.get("/", async (c) => {
       entryType: schema.timeEntries.entryType,
       date: schema.timeEntries.date,
       hours: schema.timeEntries.hours,
+      workType: schema.timeEntries.workType,
       description: schema.timeEntries.description,
       addedBy: schema.timeEntries.addedBy,
       addedByNote: schema.timeEntries.addedByNote,
@@ -51,7 +52,7 @@ adminTimeEntries.get("/", async (c) => {
 // POST /admin/time-entries - create entry for any user, any date
 adminTimeEntries.post("/", async (c) => {
   const admin = c.get("user");
-  const { userId, projectId, entryType, date, hours, description, note } = await c.req.json();
+  const { userId, projectId, entryType, date, hours, description, note, workType } = await c.req.json();
 
   if (!userId || !date || !hours) {
     return c.json({ error: "userId, date, and hours are required" }, 400);
@@ -71,6 +72,7 @@ adminTimeEntries.post("/", async (c) => {
     entryType: type,
     date,
     hours: String(hours),
+    workType: workType || "DEVELOPMENT",
     description: description || null,
     addedBy: admin.userId,
     addedByNote: note || null,
@@ -82,7 +84,7 @@ adminTimeEntries.post("/", async (c) => {
 // PUT /admin/time-entries/:id - edit any entry (no date restriction)
 adminTimeEntries.put("/:id", async (c) => {
   const id = c.req.param("id");
-  const { projectId, hours, description, note } = await c.req.json();
+  const { projectId, hours, description, note, workType } = await c.req.json();
 
   const [entry] = await db
     .select()
@@ -97,6 +99,7 @@ adminTimeEntries.put("/:id", async (c) => {
   if (hours !== undefined) updates.hours = String(hours);
   if (description !== undefined) updates.description = description;
   if (note !== undefined) updates.addedByNote = note;
+  if (workType) updates.workType = workType;
 
   await db.update(schema.timeEntries).set(updates).where(eq(schema.timeEntries.id, id));
   return c.json({ message: "Entry updated" });

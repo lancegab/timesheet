@@ -29,33 +29,48 @@ projects.get("/", async (c) => {
 
 // POST /projects - create project (admin only)
 projects.post("/", adminMiddleware, async (c) => {
-  const { name, code, description, hoursBudget } = await c.req.json();
+  const { name, code, description, budgetDevelopment, budgetQa, budgetManagement } = await c.req.json();
 
   if (!name || !code) {
     return c.json({ error: "Name and code are required" }, 400);
   }
 
   const id = uuid();
+  const devBudget = Number(budgetDevelopment || 0);
+  const qaBudget = Number(budgetQa || 0);
+  const mgmtBudget = Number(budgetManagement || 0);
+  const totalBudget = devBudget + qaBudget + mgmtBudget;
+
   await db.insert(schema.projects).values({
     id,
     name,
     code,
     description: description || null,
-    hoursBudget: String(hoursBudget || 0),
+    hoursBudget: String(totalBudget),
+    budgetDevelopment: String(devBudget),
+    budgetQa: String(qaBudget),
+    budgetManagement: String(mgmtBudget),
   });
 
-  // If initial budget > 0, create budget adjustment record
-  if (hoursBudget && Number(hoursBudget) > 0) {
-    const user = c.get("user");
-    await db.insert(schema.budgetAdjustments).values({
-      id: uuid(),
-      projectId: id,
-      adjustedBy: user.userId,
-      adjustmentAmount: String(hoursBudget),
-      previousBudget: "0",
-      newBudget: String(hoursBudget),
-      reason: "Initial budget allocation",
-    });
+  const user = c.get("user");
+  const workTypes = [
+    { type: "DEVELOPMENT" as const, amount: devBudget },
+    { type: "QA" as const, amount: qaBudget },
+    { type: "MANAGEMENT" as const, amount: mgmtBudget },
+  ];
+  for (const wt of workTypes) {
+    if (wt.amount > 0) {
+      await db.insert(schema.budgetAdjustments).values({
+        id: uuid(),
+        projectId: id,
+        adjustedBy: user.userId,
+        adjustmentAmount: String(wt.amount),
+        previousBudget: "0",
+        newBudget: String(wt.amount),
+        workType: wt.type,
+        reason: "Initial budget allocation",
+      });
+    }
   }
 
   return c.json({ id, name, code }, 201);
@@ -72,15 +87,27 @@ projects.get("/:id", async (c) => {
 
   if (!project) return c.json({ error: "Project not found" }, 404);
 
-  // Get logged hours
-  const [hoursResult] = await db
-    .select({ total: sql<string>`COALESCE(SUM(${schema.timeEntries.hours}), 0)` })
+  // Get logged hours per work type
+  const hoursByType = await db
+    .select({
+      workType: schema.timeEntries.workType,
+      total: sql<string>`COALESCE(SUM(${schema.timeEntries.hours}), 0)`,
+    })
     .from(schema.timeEntries)
-    .where(eq(schema.timeEntries.projectId, id));
+    .where(eq(schema.timeEntries.projectId, id))
+    .groupBy(schema.timeEntries.workType);
+
+  const loggedDev = hoursByType.find(h => h.workType === "DEVELOPMENT")?.total || "0";
+  const loggedQa = hoursByType.find(h => h.workType === "QA")?.total || "0";
+  const loggedMgmt = hoursByType.find(h => h.workType === "MANAGEMENT")?.total || "0";
+  const loggedTotal = String(Number(loggedDev) + Number(loggedQa) + Number(loggedMgmt));
 
   return c.json({
     ...project,
-    loggedHours: hoursResult?.total || "0",
+    loggedHours: loggedTotal,
+    loggedDevelopment: loggedDev,
+    loggedQa: loggedQa,
+    loggedManagement: loggedMgmt,
   });
 });
 
@@ -103,10 +130,15 @@ projects.put("/:id", adminMiddleware, async (c) => {
 projects.post("/:id/budget-adjustment", adminMiddleware, async (c) => {
   const projectId = c.req.param("id");
   const user = c.get("user");
-  const { amount, reason } = await c.req.json();
+  const { amount, reason, workType } = await c.req.json();
 
-  if (amount === undefined || !reason) {
-    return c.json({ error: "Amount and reason are required" }, 400);
+  if (amount === undefined || !reason || !workType) {
+    return c.json({ error: "Amount, reason, and workType are required" }, 400);
+  }
+
+  const validTypes = ["DEVELOPMENT", "QA", "MANAGEMENT"];
+  if (!validTypes.includes(workType)) {
+    return c.json({ error: "Invalid workType" }, 400);
   }
 
   const [project] = await db
@@ -117,7 +149,8 @@ projects.post("/:id/budget-adjustment", adminMiddleware, async (c) => {
 
   if (!project) return c.json({ error: "Project not found" }, 404);
 
-  const previousBudget = Number(project.hoursBudget);
+  const budgetField = workType === "DEVELOPMENT" ? "budgetDevelopment" : workType === "QA" ? "budgetQa" : "budgetManagement";
+  const previousBudget = Number(project[budgetField]);
   const newBudget = previousBudget + Number(amount);
 
   await db.insert(schema.budgetAdjustments).values({
@@ -127,15 +160,23 @@ projects.post("/:id/budget-adjustment", adminMiddleware, async (c) => {
     adjustmentAmount: String(amount),
     previousBudget: String(previousBudget),
     newBudget: String(newBudget),
+    workType,
     reason,
   });
 
+  // Update the specific budget field and recalculate total
+  const updateData: Record<string, any> = { [budgetField]: String(newBudget) };
+  const newDev = workType === "DEVELOPMENT" ? newBudget : Number(project.budgetDevelopment);
+  const newQa = workType === "QA" ? newBudget : Number(project.budgetQa);
+  const newMgmt = workType === "MANAGEMENT" ? newBudget : Number(project.budgetManagement);
+  updateData.hoursBudget = String(newDev + newQa + newMgmt);
+
   await db
     .update(schema.projects)
-    .set({ hoursBudget: String(newBudget) })
+    .set(updateData)
     .where(eq(schema.projects.id, projectId));
 
-  return c.json({ previousBudget, newBudget });
+  return c.json({ previousBudget, newBudget, workType });
 });
 
 // GET /projects/:id/budget-history
@@ -148,6 +189,7 @@ projects.get("/:id/budget-history", adminMiddleware, async (c) => {
       adjustmentAmount: schema.budgetAdjustments.adjustmentAmount,
       previousBudget: schema.budgetAdjustments.previousBudget,
       newBudget: schema.budgetAdjustments.newBudget,
+      workType: schema.budgetAdjustments.workType,
       reason: schema.budgetAdjustments.reason,
       createdAt: schema.budgetAdjustments.createdAt,
       adjustedByName: schema.users.fullName,

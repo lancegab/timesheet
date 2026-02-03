@@ -30,6 +30,7 @@ clock.get("/status", async (c) => {
       projectId: schema.clockSessions.projectId,
       projectName: schema.projects.name,
       segmentStartAt: schema.clockSessions.segmentStartAt,
+      workType: schema.clockSessions.workType,
       autoClockOut: schema.clockSessions.autoClockOut,
     })
     .from(schema.clockSessions)
@@ -64,6 +65,7 @@ clock.get("/status", async (c) => {
       entryType: "REGULAR",
       date: entryDate as any,
       hours: String(segmentHours),
+      workType: session.workType as any,
       description: "Auto clock-out - please update description",
     });
 
@@ -92,6 +94,7 @@ clock.get("/status", async (c) => {
       projectId: session.projectId,
       projectName: session.projectName,
       segmentStartAt: segStart,
+      workType: session.workType,
       elapsedSeconds: Math.floor((Date.now() - new Date(session.clockInAt).getTime()) / 1000),
       segmentSeconds: Math.floor((Date.now() - new Date(segStart).getTime()) / 1000),
     },
@@ -101,7 +104,7 @@ clock.get("/status", async (c) => {
 // POST /clock/in - requires projectId
 clock.post("/in", async (c) => {
   const user = c.get("user");
-  const { projectId } = await c.req.json();
+  const { projectId, workType } = await c.req.json();
 
   if (!projectId) {
     return c.json({ error: "Project is required" }, 400);
@@ -130,15 +133,16 @@ clock.post("/in", async (c) => {
     clockInAt: now,
     projectId,
     segmentStartAt: now,
+    workType: workType || "DEVELOPMENT",
   });
 
-  return c.json({ id, clockInAt: now, projectId }, 201);
+  return c.json({ id, clockInAt: now, projectId, workType: workType || "DEVELOPMENT" }, 201);
 });
 
 // POST /clock/switch - switch project, finalize previous segment
 clock.post("/switch", async (c) => {
   const user = c.get("user");
-  const { projectId, description } = await c.req.json();
+  const { projectId, description, workType } = await c.req.json();
 
   if (!projectId || !description) {
     return c.json({ error: "New projectId and description for current work are required" }, 400);
@@ -159,15 +163,16 @@ clock.post("/switch", async (c) => {
     return c.json({ error: "No active clock session" }, 400);
   }
 
-  if (session.projectId === projectId) {
-    return c.json({ error: "Already working on this project" }, 400);
+  const newWorkType = workType || session.workType;
+  if (session.projectId === projectId && session.workType === newWorkType) {
+    return c.json({ error: "Already working on this project with the same work type" }, 400);
   }
 
   const now = new Date();
   const segStart = session.segmentStartAt || session.clockInAt;
   const hours = calcHours(new Date(segStart), now);
 
-  // Create time entry for the completed segment
+  // Create time entry for the completed segment (uses session's current workType)
   const entryId = uuid();
   const entryDate = new Date(segStart).toISOString().split("T")[0];
   await db.insert(schema.timeEntries).values({
@@ -177,13 +182,16 @@ clock.post("/switch", async (c) => {
     entryType: "REGULAR",
     date: entryDate as any,
     hours: String(hours),
+    workType: session.workType as any,
     description,
   });
 
-  // Update session to new project and reset segment
+  // Update session to new project/workType and reset segment
+  const updates: Record<string, any> = { projectId, segmentStartAt: now };
+  if (workType) updates.workType = workType;
   await db
     .update(schema.clockSessions)
-    .set({ projectId, segmentStartAt: now })
+    .set(updates)
     .where(eq(schema.clockSessions.id, session.id));
 
   return c.json({ message: "Project switched", timeEntryId: entryId, hours });
@@ -227,6 +235,7 @@ clock.post("/out", async (c) => {
     entryType: "REGULAR",
     date: entryDate as any,
     hours: String(hours),
+    workType: session.workType as any,
     description,
   });
 
@@ -294,6 +303,7 @@ export async function autoClockOutStale() {
       entryType: "REGULAR",
       date: entryDate as any,
       hours: String(hours),
+      workType: session.workType as any,
       description: "Auto clock-out - please update description",
     });
 

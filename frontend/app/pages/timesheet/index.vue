@@ -69,6 +69,7 @@
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Work Type</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Hours</th>
             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -87,6 +88,13 @@
               </span>
             </td>
             <td class="px-4 py-3 text-sm text-gray-700">{{ entry.projectName || '-' }}</td>
+            <td class="px-4 py-3 text-sm">
+              <span v-if="entry.entryType === 'REGULAR'" class="px-2 py-0.5 rounded-full text-xs font-medium"
+                :class="entry.workType === 'QA' ? 'bg-cyan-100 text-cyan-700' : entry.workType === 'MANAGEMENT' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'">
+                {{ entry.workType === 'QA' ? 'QA' : entry.workType === 'MANAGEMENT' ? 'Mgmt' : 'Dev' }}
+              </span>
+              <span v-else class="text-gray-400">-</span>
+            </td>
             <td class="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">{{ entry.description || '-' }}</td>
             <td class="px-4 py-3 text-sm text-gray-900 text-right font-medium">{{ entry.hours }}</td>
             <td class="px-4 py-3 text-right">
@@ -98,7 +106,7 @@
             </td>
           </tr>
           <tr v-if="entries.length === 0">
-            <td colspan="6" class="px-4 py-8 text-center text-gray-400">No time entries found</td>
+            <td colspan="7" class="px-4 py-8 text-center text-gray-400">No time entries found</td>
           </tr>
         </tbody>
       </table>
@@ -128,6 +136,15 @@
               class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
               <option value="">Select project</option>
               <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </div>
+          <div v-if="entryForm.entryType === 'REGULAR'">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Work Type</label>
+            <select v-model="entryForm.workType"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+              <option value="DEVELOPMENT">Development</option>
+              <option value="QA">QA</option>
+              <option value="MANAGEMENT">Management</option>
             </select>
           </div>
           <div>
@@ -191,6 +208,7 @@ const entryForm = reactive({
   entryType: 'REGULAR',
   date: new Date().toISOString().split('T')[0],
   projectId: '',
+  workType: 'DEVELOPMENT',
   hours: 8,
   description: '',
 })
@@ -231,6 +249,7 @@ function editEntry(entry: TimeEntry) {
   entryForm.entryType = entry.entryType
   entryForm.date = entry.date
   entryForm.projectId = entry.projectId || ''
+  entryForm.workType = (entry as any).workType || 'DEVELOPMENT'
   entryForm.hours = Number(entry.hours)
   entryForm.description = entry.description || ''
   showEntryForm.value = true
@@ -243,6 +262,7 @@ function closeForm() {
   entryForm.entryType = 'REGULAR'
   entryForm.date = new Date().toISOString().split('T')[0]
   entryForm.projectId = ''
+  entryForm.workType = 'DEVELOPMENT'
   entryForm.hours = 8
   entryForm.description = ''
 }
@@ -255,6 +275,7 @@ async function saveEntry() {
       entryType: entryForm.entryType,
       date: entryForm.date,
       hours: entryForm.hours,
+      workType: entryForm.workType,
       description: entryForm.description || null,
     }
     if (entryForm.entryType === 'REGULAR') {

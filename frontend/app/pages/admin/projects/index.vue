@@ -22,17 +22,40 @@
             <button @click="adjustBudget(p)" class="text-amber-600 hover:text-amber-800 text-sm">Budget</button>
           </div>
         </div>
-        <div class="flex gap-6 text-sm">
+        <div class="grid grid-cols-3 gap-3 text-sm mt-2">
+          <div class="bg-blue-50 rounded p-2">
+            <div class="text-xs text-blue-600 font-medium">Development</div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Budget: <span class="font-medium text-gray-900">{{ p.budgetDevelopment || '0' }}h</span></span>
+              <span class="text-gray-500">Logged: <span class="font-medium text-gray-900">{{ p.loggedDevelopment || '0' }}h</span></span>
+            </div>
+          </div>
+          <div class="bg-cyan-50 rounded p-2">
+            <div class="text-xs text-cyan-600 font-medium">QA</div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Budget: <span class="font-medium text-gray-900">{{ p.budgetQa || '0' }}h</span></span>
+              <span class="text-gray-500">Logged: <span class="font-medium text-gray-900">{{ p.loggedQa || '0' }}h</span></span>
+            </div>
+          </div>
+          <div class="bg-purple-50 rounded p-2">
+            <div class="text-xs text-purple-600 font-medium">Management</div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Budget: <span class="font-medium text-gray-900">{{ p.budgetManagement || '0' }}h</span></span>
+              <span class="text-gray-500">Logged: <span class="font-medium text-gray-900">{{ p.loggedManagement || '0' }}h</span></span>
+            </div>
+          </div>
+        </div>
+        <div class="flex gap-6 text-sm mt-2">
           <div>
-            <span class="text-gray-500">Budget:</span>
+            <span class="text-gray-500">Total Budget:</span>
             <span class="font-medium text-gray-900 ml-1">{{ p.hoursBudget }}h</span>
           </div>
           <div>
-            <span class="text-gray-500">Logged:</span>
+            <span class="text-gray-500">Total Logged:</span>
             <span class="font-medium text-gray-900 ml-1">{{ p.loggedHours || '0' }}h</span>
           </div>
           <div>
-            <span class="text-gray-500">Remaining:</span>
+            <span class="text-gray-500">Total Remaining:</span>
             <span class="font-medium ml-1"
               :class="Number(p.hoursBudget) - Number(p.loggedHours || 0) < 0 ? 'text-red-600' : 'text-green-600'">
               {{ (Number(p.hoursBudget) - Number(p.loggedHours || 0)).toFixed(1) }}h
@@ -70,10 +93,25 @@
               <option value="COMPLETED">Completed</option>
             </select>
           </div>
-          <div v-if="!editing">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Initial Hours Budget</label>
-            <input v-model.number="form.hoursBudget" type="number" step="0.5" min="0"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+          <div v-if="!editing" class="space-y-2">
+            <label class="block text-sm font-medium text-gray-700">Initial Budgets (hours)</label>
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">Development</label>
+                <input v-model.number="form.budgetDevelopment" type="number" step="0.5" min="0"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">QA</label>
+                <input v-model.number="form.budgetQa" type="number" step="0.5" min="0"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">Management</label>
+                <input v-model.number="form.budgetManagement" type="number" step="0.5" min="0"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+              </div>
+            </div>
           </div>
           <div v-if="formError" class="text-red-600 text-sm bg-red-50 p-3 rounded-md">{{ formError }}</div>
           <div class="flex gap-3 justify-end">
@@ -90,7 +128,20 @@
     <div v-if="showBudget" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
         <h2 class="text-lg font-bold text-gray-900 mb-4">Budget: {{ budgetProject?.name }}</h2>
-        <div class="mb-4 text-sm text-gray-600">Current budget: <span class="font-bold text-gray-900">{{ budgetProject?.hoursBudget }}h</span></div>
+        <div class="mb-4 grid grid-cols-3 gap-2 text-sm">
+          <div class="bg-blue-50 rounded p-2">
+            <div class="text-xs text-blue-600 font-medium">Dev</div>
+            <div class="font-bold text-gray-900">{{ budgetProject?.budgetDevelopment || '0' }}h</div>
+          </div>
+          <div class="bg-cyan-50 rounded p-2">
+            <div class="text-xs text-cyan-600 font-medium">QA</div>
+            <div class="font-bold text-gray-900">{{ budgetProject?.budgetQa || '0' }}h</div>
+          </div>
+          <div class="bg-purple-50 rounded p-2">
+            <div class="text-xs text-purple-600 font-medium">Mgmt</div>
+            <div class="font-bold text-gray-900">{{ budgetProject?.budgetManagement || '0' }}h</div>
+          </div>
+        </div>
 
         <!-- History -->
         <div v-if="budgetHistory.length" class="mb-4 max-h-48 overflow-y-auto">
@@ -99,6 +150,7 @@
               <tr class="text-gray-500 uppercase">
                 <th class="pb-1 text-left">Date</th>
                 <th class="pb-1 text-left">By</th>
+                <th class="pb-1 text-left">Type</th>
                 <th class="pb-1 text-right">Amount</th>
                 <th class="pb-1 text-right">New Total</th>
                 <th class="pb-1 text-left">Reason</th>
@@ -108,6 +160,12 @@
               <tr v-for="h in budgetHistory" :key="h.id" class="border-t border-gray-100">
                 <td class="py-1 text-gray-600">{{ new Date(h.createdAt).toLocaleDateString() }}</td>
                 <td class="py-1 text-gray-600">{{ h.adjustedByName }}</td>
+                <td class="py-1">
+                  <span class="px-1.5 py-0.5 rounded text-xs font-medium"
+                    :class="h.workType === 'QA' ? 'bg-cyan-100 text-cyan-700' : h.workType === 'MANAGEMENT' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'">
+                    {{ h.workType === 'QA' ? 'QA' : h.workType === 'MANAGEMENT' ? 'Mgmt' : 'Dev' }}
+                  </span>
+                </td>
                 <td class="py-1 text-right" :class="Number(h.adjustmentAmount) >= 0 ? 'text-green-600' : 'text-red-600'">
                   {{ Number(h.adjustmentAmount) >= 0 ? '+' : '' }}{{ h.adjustmentAmount }}
                 </td>
@@ -119,6 +177,15 @@
         </div>
 
         <form @submit.prevent="saveBudgetAdjustment" class="space-y-3 border-t pt-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Work Type</label>
+            <select v-model="budgetForm.workType" required
+              class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+              <option value="DEVELOPMENT">Development</option>
+              <option value="QA">QA</option>
+              <option value="MANAGEMENT">Management</option>
+            </select>
+          </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Adjustment Amount (+ or -)</label>
             <input v-model.number="budgetForm.amount" type="number" step="0.5" required
@@ -182,12 +249,12 @@ const showForm = ref(false)
 const editing = ref<string | null>(null)
 const formError = ref('')
 
-const form = reactive({ name: '', code: '', description: '', status: 'ACTIVE', hoursBudget: 0 })
+const form = reactive({ name: '', code: '', description: '', status: 'ACTIVE', budgetDevelopment: 0, budgetQa: 0, budgetManagement: 0 })
 
 const showBudget = ref(false)
 const budgetProject = ref<any>(null)
 const budgetHistory = ref<any[]>([])
-const budgetForm = reactive({ amount: 0, reason: '' })
+const budgetForm = reactive({ amount: 0, reason: '', workType: 'DEVELOPMENT' })
 
 const showMembers = ref(false)
 const membersProject = ref<any>(null)
@@ -206,7 +273,7 @@ async function loadProjects() {
   projects.value = await Promise.all(all.map(async p => {
     try {
       const detail = await apiFetch<any>(`/projects/${p.id}`)
-      return { ...p, loggedHours: detail.loggedHours }
+      return { ...p, loggedHours: detail.loggedHours, loggedDevelopment: detail.loggedDevelopment, loggedQa: detail.loggedQa, loggedManagement: detail.loggedManagement }
     } catch {
       return { ...p, loggedHours: '0' }
     }
@@ -230,7 +297,9 @@ function closeForm() {
   form.code = ''
   form.description = ''
   form.status = 'ACTIVE'
-  form.hoursBudget = 0
+  form.budgetDevelopment = 0
+  form.budgetQa = 0
+  form.budgetManagement = 0
 }
 
 async function saveProject() {
@@ -258,6 +327,7 @@ async function adjustBudget(p: any) {
   budgetProject.value = p
   budgetForm.amount = 0
   budgetForm.reason = ''
+  budgetForm.workType = 'DEVELOPMENT'
   formError.value = ''
   budgetHistory.value = await apiFetch<any[]>(`/projects/${p.id}/budget-history`)
   showBudget.value = true
@@ -268,11 +338,12 @@ async function saveBudgetAdjustment() {
   try {
     await apiFetch(`/projects/${budgetProject.value.id}/budget-adjustment`, {
       method: 'POST',
-      body: JSON.stringify({ amount: budgetForm.amount, reason: budgetForm.reason }),
+      body: JSON.stringify({ amount: budgetForm.amount, reason: budgetForm.reason, workType: budgetForm.workType }),
     })
     budgetHistory.value = await apiFetch<any[]>(`/projects/${budgetProject.value.id}/budget-history`)
     budgetForm.amount = 0
     budgetForm.reason = ''
+    budgetForm.workType = 'DEVELOPMENT'
     await loadProjects()
   } catch (e: any) {
     formError.value = e.message

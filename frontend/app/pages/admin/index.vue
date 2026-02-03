@@ -87,36 +87,44 @@
     <!-- Budget Utilization -->
     <div class="bg-white rounded-lg shadow-sm border p-4 mb-6">
       <h2 class="text-sm font-semibold text-gray-700 mb-3">Project Budget Utilization</h2>
-      <table class="min-w-full text-sm">
-        <thead>
-          <tr class="text-left text-xs text-gray-500 uppercase">
-            <th class="pb-2">Project</th>
-            <th class="pb-2 text-right">Budget</th>
-            <th class="pb-2 text-right">Logged</th>
-            <th class="pb-2 text-right">Remaining</th>
-            <th class="pb-2 text-right">Used %</th>
-            <th class="pb-2 w-48"></th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          <tr v-for="b in report?.projectBudgets" :key="b.id">
-            <td class="py-2 text-gray-900">{{ b.name }}</td>
-            <td class="py-2 text-right text-gray-700">{{ b.hoursBudget }}h</td>
-            <td class="py-2 text-right text-gray-700">{{ b.loggedHours }}h</td>
-            <td class="py-2 text-right" :class="Number(b.remainingHours) < 0 ? 'text-red-600 font-medium' : 'text-gray-700'">
-              {{ b.remainingHours }}h
-            </td>
-            <td class="py-2 text-right text-gray-700">{{ b.percentUsed }}%</td>
-            <td class="py-2">
-              <div class="w-full bg-gray-200 rounded-full h-2">
-                <div class="h-2 rounded-full"
-                  :class="Number(b.percentUsed) > 100 ? 'bg-red-500' : Number(b.percentUsed) > 80 ? 'bg-amber-500' : 'bg-indigo-500'"
-                  :style="{ width: Math.min(Number(b.percentUsed), 100) + '%' }"></div>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div v-for="b in report?.projectBudgets" :key="b.id" class="mb-4 border-b pb-4 last:border-0 last:pb-0">
+        <div class="flex justify-between items-center mb-2">
+          <h3 class="font-medium text-gray-900">{{ b.name }}</h3>
+          <span class="text-sm text-gray-500">Total: {{ b.loggedHours }}h / {{ b.hoursBudget }}h ({{ b.percentUsed }}%)</span>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div class="text-xs">
+            <div class="flex justify-between mb-1">
+              <span class="text-blue-600 font-medium">Dev</span>
+              <span class="text-gray-600">{{ b.development?.logged || '0' }}h / {{ b.development?.budget || '0' }}h</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-1.5">
+              <div class="h-1.5 rounded-full bg-blue-500"
+                :style="{ width: Math.min(Number(b.development?.budget) > 0 ? (Number(b.development?.logged) / Number(b.development?.budget)) * 100 : 0, 100) + '%' }"></div>
+            </div>
+          </div>
+          <div class="text-xs">
+            <div class="flex justify-between mb-1">
+              <span class="text-cyan-600 font-medium">QA</span>
+              <span class="text-gray-600">{{ b.qa?.logged || '0' }}h / {{ b.qa?.budget || '0' }}h</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-1.5">
+              <div class="h-1.5 rounded-full bg-cyan-500"
+                :style="{ width: Math.min(Number(b.qa?.budget) > 0 ? (Number(b.qa?.logged) / Number(b.qa?.budget)) * 100 : 0, 100) + '%' }"></div>
+            </div>
+          </div>
+          <div class="text-xs">
+            <div class="flex justify-between mb-1">
+              <span class="text-purple-600 font-medium">Mgmt</span>
+              <span class="text-gray-600">{{ b.management?.logged || '0' }}h / {{ b.management?.budget || '0' }}h</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-1.5">
+              <div class="h-1.5 rounded-full bg-purple-500"
+                :style="{ width: Math.min(Number(b.management?.budget) > 0 ? (Number(b.management?.logged) / Number(b.management?.budget)) * 100 : 0, 100) + '%' }"></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Detailed Entries -->

@@ -91,22 +91,59 @@ reports.get("/summary", async (c) => {
   if (startDate) dateConds.push(sql`${schema.timeEntries.date} >= ${startDate}`);
   if (endDate) dateConds.push(sql`${schema.timeEntries.date} <= ${endDate}`);
 
-  const projectBudgets = await db
+  // Per-project, per-work-type budget utilization
+  const projectRows = await db
     .select({
       id: schema.projects.id,
       name: schema.projects.name,
       hoursBudget: schema.projects.hoursBudget,
-      loggedHours: sql<string>`COALESCE(SUM(${schema.timeEntries.hours}), 0)`,
+      budgetDevelopment: schema.projects.budgetDevelopment,
+      budgetQa: schema.projects.budgetQa,
+      budgetManagement: schema.projects.budgetManagement,
     })
-    .from(schema.projects)
-    .leftJoin(
-      schema.timeEntries,
-      and(
-        eq(schema.projects.id, schema.timeEntries.projectId),
-        ...dateConds
-      )
-    )
-    .groupBy(schema.projects.id, schema.projects.name, schema.projects.hoursBudget);
+    .from(schema.projects);
+
+  const projectBudgets = await Promise.all(projectRows.map(async (p) => {
+    const typeConds = [...dateConds, eq(schema.timeEntries.projectId, p.id)];
+    const hoursByType = await db
+      .select({
+        workType: schema.timeEntries.workType,
+        total: sql<string>`COALESCE(SUM(${schema.timeEntries.hours}), 0)`,
+      })
+      .from(schema.timeEntries)
+      .where(and(...typeConds))
+      .groupBy(schema.timeEntries.workType);
+
+    const loggedDev = Number(hoursByType.find(h => h.workType === "DEVELOPMENT")?.total || 0);
+    const loggedQa = Number(hoursByType.find(h => h.workType === "QA")?.total || 0);
+    const loggedMgmt = Number(hoursByType.find(h => h.workType === "MANAGEMENT")?.total || 0);
+    const loggedTotal = loggedDev + loggedQa + loggedMgmt;
+    const totalBudget = Number(p.hoursBudget);
+
+    return {
+      id: p.id,
+      name: p.name,
+      hoursBudget: p.hoursBudget,
+      loggedHours: String(loggedTotal),
+      remainingHours: String(totalBudget - loggedTotal),
+      percentUsed: totalBudget > 0 ? String(Math.round((loggedTotal / totalBudget) * 100)) : "0",
+      development: {
+        budget: p.budgetDevelopment,
+        logged: String(loggedDev),
+        remaining: String(Number(p.budgetDevelopment) - loggedDev),
+      },
+      qa: {
+        budget: p.budgetQa,
+        logged: String(loggedQa),
+        remaining: String(Number(p.budgetQa) - loggedQa),
+      },
+      management: {
+        budget: p.budgetManagement,
+        logged: String(loggedMgmt),
+        remaining: String(Number(p.budgetManagement) - loggedMgmt),
+      },
+    };
+  }));
 
   return c.json({
     totalHours: totalResult?.total || "0",
@@ -114,14 +151,7 @@ reports.get("/summary", async (c) => {
     byProject,
     byMember,
     byType,
-    projectBudgets: projectBudgets.map((p) => ({
-      ...p,
-      remainingHours: String(Number(p.hoursBudget) - Number(p.loggedHours)),
-      percentUsed:
-        Number(p.hoursBudget) > 0
-          ? String(Math.round((Number(p.loggedHours) / Number(p.hoursBudget)) * 100))
-          : "0",
-    })),
+    projectBudgets,
   });
 });
 

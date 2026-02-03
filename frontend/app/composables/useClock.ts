@@ -4,6 +4,7 @@ interface ClockSession {
   projectId: string
   projectName: string
   segmentStartAt: string
+  workType: string
   elapsedSeconds: number
   segmentSeconds: number
 }
@@ -76,10 +77,10 @@ export function useClock() {
     }
   }
 
-  async function clockIn(projectId: string) {
+  async function clockIn(projectId: string, workType: string = 'DEVELOPMENT') {
     const data = await apiFetch<any>('/clock/in', {
       method: 'POST',
-      body: JSON.stringify({ projectId }),
+      body: JSON.stringify({ projectId, workType }),
     })
     active.value = true
     session.value = {
@@ -88,16 +89,17 @@ export function useClock() {
       projectId: data.projectId,
       projectName: '',
       segmentStartAt: data.clockInAt,
+      workType: data.workType || workType,
       elapsedSeconds: 0,
       segmentSeconds: 0,
     }
     startTimer()
   }
 
-  async function switchProject(projectId: string, description: string) {
+  async function switchProject(projectId: string, description: string, workType?: string) {
     const data = await apiFetch<any>('/clock/switch', {
       method: 'POST',
-      body: JSON.stringify({ projectId, description }),
+      body: JSON.stringify({ projectId, description, workType }),
     })
     await checkStatus()
     return data

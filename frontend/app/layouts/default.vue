@@ -65,6 +65,11 @@
                 <option value="">Select project</option>
                 <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
               </select>
+              <select v-model="clockInWorkType" class="bg-gray-800 text-white text-sm rounded-md border border-gray-700 px-2 py-1 focus:ring-indigo-500 focus:border-indigo-500">
+                <option value="DEVELOPMENT">Dev</option>
+                <option value="QA">QA</option>
+                <option value="MANAGEMENT">Mgmt</option>
+              </select>
               <button @click="handleClockIn" :disabled="!clockInProject"
                 class="px-4 py-1 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium transition">
                 Clock In
@@ -83,6 +88,10 @@
               <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-400">Project:</span>
                 <span class="text-sm font-medium">{{ clockState.session.value?.projectName || 'Loading...' }}</span>
+                <span class="text-xs px-1.5 py-0.5 rounded font-medium"
+                  :class="clockState.session.value?.workType === 'QA' ? 'bg-cyan-800 text-cyan-200' : clockState.session.value?.workType === 'MANAGEMENT' ? 'bg-purple-800 text-purple-200' : 'bg-blue-800 text-blue-200'">
+                  {{ workTypeLabel(clockState.session.value?.workType) }}
+                </span>
                 <span class="text-xs text-gray-500 font-mono">({{ clockState.formatElapsed(clockState.segmentElapsed.value) }})</span>
               </div>
               <div class="h-5 w-px bg-gray-700"></div>
@@ -91,7 +100,12 @@
                   <option value="">Switch project...</option>
                   <option v-for="p in projects.filter(p => p.id !== clockState.session.value?.projectId)" :key="p.id" :value="p.id">{{ p.name }}</option>
                 </select>
-                <button v-if="switchProjectId" @click="openSwitchModal"
+                <select v-model="switchWorkType" class="bg-gray-800 text-white text-sm rounded-md border border-gray-700 px-2 py-1 focus:ring-indigo-500 focus:border-indigo-500">
+                  <option value="DEVELOPMENT">Dev</option>
+                  <option value="QA">QA</option>
+                  <option value="MANAGEMENT">Mgmt</option>
+                </select>
+                <button v-if="switchProjectId || switchWorkType !== (clockState.session.value?.workType || 'DEVELOPMENT')" @click="openSwitchModal"
                   class="px-3 py-1 bg-amber-600 text-white rounded-md hover:bg-amber-700 text-xs font-medium transition">
                   Switch
                 </button>
@@ -178,7 +192,9 @@ const { apiFetch } = useApi()
 
 const projects = ref<any[]>([])
 const clockInProject = ref('')
+const clockInWorkType = ref('DEVELOPMENT')
 const switchProjectId = ref('')
+const switchWorkType = ref('DEVELOPMENT')
 const switchDescription = ref('')
 const clockOutDescription = ref('')
 const showSwitchModal = ref(false)
@@ -189,6 +205,12 @@ function formatTime(dateStr?: string) {
   if (!dateStr) return ''
   const d = new Date(dateStr)
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function workTypeLabel(wt?: string) {
+  if (wt === 'QA') return 'QA'
+  if (wt === 'MANAGEMENT') return 'Mgmt'
+  return 'Dev'
 }
 
 async function handleLogout() {
@@ -206,16 +228,21 @@ async function handleClockIn() {
   if (!clockInProject.value) return
   clockError.value = ''
   try {
-    await clockState.clockIn(clockInProject.value)
+    await clockState.clockIn(clockInProject.value, clockInWorkType.value)
     // Refresh to get project name
     await clockState.checkStatus()
     clockInProject.value = ''
+    clockInWorkType.value = 'DEVELOPMENT'
   } catch (e: any) {
     clockError.value = e.message
   }
 }
 
 function openSwitchModal() {
+  // If no new project selected, keep current project (just switching work type)
+  if (!switchProjectId.value) {
+    switchProjectId.value = clockState.session.value?.projectId || ''
+  }
   switchDescription.value = ''
   clockError.value = ''
   showSwitchModal.value = true
@@ -224,9 +251,10 @@ function openSwitchModal() {
 async function handleSwitch() {
   clockError.value = ''
   try {
-    await clockState.switchProject(switchProjectId.value, switchDescription.value)
+    await clockState.switchProject(switchProjectId.value, switchDescription.value, switchWorkType.value)
     showSwitchModal.value = false
     switchProjectId.value = ''
+    switchWorkType.value = clockState.session.value?.workType || 'DEVELOPMENT'
   } catch (e: any) {
     clockError.value = e.message
   }
@@ -248,10 +276,17 @@ async function handleClockOut() {
   }
 }
 
+watch(() => clockState.session.value?.workType, (wt) => {
+  if (wt) switchWorkType.value = wt
+})
+
 onMounted(async () => {
   if (auth.isAuthenticated.value) {
     await loadProjects()
     await clockState.checkStatus()
+    if (clockState.session.value?.workType) {
+      switchWorkType.value = clockState.session.value.workType
+    }
   }
 })
 </script>
