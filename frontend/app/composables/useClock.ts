@@ -27,12 +27,17 @@ export function useClock() {
 
   let timerInterval: ReturnType<typeof setInterval> | null = null
 
+  function recalcElapsed() {
+    if (!session.value) return
+    const now = Date.now()
+    elapsed.value = Math.floor((now - new Date(session.value.clockInAt).getTime()) / 1000)
+    segmentElapsed.value = Math.floor((now - new Date(session.value.segmentStartAt).getTime()) / 1000)
+  }
+
   function startTimer() {
     stopTimer()
-    timerInterval = setInterval(() => {
-      elapsed.value++
-      segmentElapsed.value++
-    }, 1000)
+    recalcElapsed()
+    timerInterval = setInterval(recalcElapsed, 1000)
   }
 
   function stopTimer() {
@@ -55,8 +60,6 @@ export function useClock() {
       if (data.active) {
         active.value = true
         session.value = data.session
-        elapsed.value = data.session.elapsedSeconds
-        segmentElapsed.value = data.session.segmentSeconds
         startTimer()
       } else {
         active.value = false
@@ -88,8 +91,6 @@ export function useClock() {
       elapsedSeconds: 0,
       segmentSeconds: 0,
     }
-    elapsed.value = 0
-    segmentElapsed.value = 0
     startTimer()
   }
 
@@ -98,7 +99,6 @@ export function useClock() {
       method: 'POST',
       body: JSON.stringify({ projectId, description }),
     })
-    // Refresh status to get new project name
     await checkStatus()
     return data
   }
