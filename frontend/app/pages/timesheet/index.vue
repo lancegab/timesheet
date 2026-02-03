@@ -50,6 +50,51 @@
       </div>
     </div>
 
+    <!-- Project Budgets -->
+    <div v-if="projectDetails.length > 0" class="mb-6">
+      <h2 class="text-sm font-semibold text-gray-700 mb-2">Project Budgets</h2>
+      <div class="grid gap-3" :class="projectDetails.length === 1 ? 'grid-cols-1' : projectDetails.length === 2 ? 'grid-cols-2' : 'grid-cols-3'">
+        <div v-for="p in projectDetails" :key="p.id" class="bg-white rounded-lg shadow-sm border p-3">
+          <div class="flex justify-between items-center mb-2">
+            <h3 class="text-sm font-medium text-gray-900">{{ p.name }}</h3>
+            <span class="text-xs text-gray-500">{{ p.loggedHours }}h / {{ p.hoursBudget }}h total</span>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <div class="text-xs">
+              <div class="flex justify-between mb-1">
+                <span class="text-blue-600 font-medium">Dev</span>
+                <span class="text-gray-500">{{ p.loggedDevelopment }}h / {{ p.budgetDevelopment }}h</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-1.5">
+                <div class="h-1.5 rounded-full" :class="budgetBarColor(p.loggedDevelopment, p.budgetDevelopment)"
+                  :style="{ width: budgetPercent(p.loggedDevelopment, p.budgetDevelopment) + '%' }"></div>
+              </div>
+            </div>
+            <div class="text-xs">
+              <div class="flex justify-between mb-1">
+                <span class="text-cyan-600 font-medium">QA</span>
+                <span class="text-gray-500">{{ p.loggedQa }}h / {{ p.budgetQa }}h</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-1.5">
+                <div class="h-1.5 rounded-full" :class="budgetBarColor(p.loggedQa, p.budgetQa)"
+                  :style="{ width: budgetPercent(p.loggedQa, p.budgetQa) + '%' }"></div>
+              </div>
+            </div>
+            <div class="text-xs">
+              <div class="flex justify-between mb-1">
+                <span class="text-purple-600 font-medium">Mgmt</span>
+                <span class="text-gray-500">{{ p.loggedManagement }}h / {{ p.budgetManagement }}h</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-1.5">
+                <div class="h-1.5 rounded-full" :class="budgetBarColor(p.loggedManagement, p.budgetManagement)"
+                  :style="{ width: budgetPercent(p.loggedManagement, p.budgetManagement) + '%' }"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Holidays -->
     <div v-if="holidays.length > 0" class="mb-6">
       <h2 class="text-sm font-semibold text-gray-700 mb-2">Upcoming Paid Holidays</h2>
@@ -191,6 +236,7 @@ interface TimeEntry {
 
 const entries = ref<TimeEntry[]>([])
 const projects = ref<any[]>([])
+const projectDetails = ref<any[]>([])
 const holidays = ref<any[]>([])
 const dateRange = ref<{ minDate: string; maxDate: string } | null>(null)
 const showEntryForm = ref(false)
@@ -238,6 +284,29 @@ async function loadEntries() {
 
 async function loadProjects() {
   projects.value = await apiFetch<any[]>('/projects')
+  // Load detailed budget info for each project
+  projectDetails.value = await Promise.all(projects.value.map(async p => {
+    try {
+      return await apiFetch<any>(`/projects/${p.id}`)
+    } catch {
+      return { ...p, loggedHours: '0', loggedDevelopment: '0', loggedQa: '0', loggedManagement: '0' }
+    }
+  }))
+}
+
+function budgetPercent(logged: string, budget: string): number {
+  const b = Number(budget)
+  if (b <= 0) return 0
+  return Math.min((Number(logged) / b) * 100, 100)
+}
+
+function budgetBarColor(logged: string, budget: string): string {
+  const b = Number(budget)
+  if (b <= 0) return 'bg-gray-400'
+  const pct = (Number(logged) / b) * 100
+  if (pct > 100) return 'bg-red-500'
+  if (pct > 80) return 'bg-amber-500'
+  return 'bg-indigo-500'
 }
 
 async function loadHolidays() {
