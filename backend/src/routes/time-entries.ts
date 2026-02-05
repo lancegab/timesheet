@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { db, schema } from "../db/index.js";
 import { authMiddleware } from "../middleware/auth.js";
@@ -55,7 +55,7 @@ timeEntries.get("/", async (c) => {
     .leftJoin(schema.projects, eq(schema.timeEntries.projectId, schema.projects.id))
     .leftJoin(schema.users, eq(schema.timeEntries.addedBy, schema.users.id))
     .where(and(...conditions))
-    .orderBy(schema.timeEntries.date);
+    .orderBy(desc(schema.timeEntries.date));
 
   const { minDate, maxDate } = getAllowedDateRange();
   const enriched = entries.map((e) => ({

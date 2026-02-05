@@ -194,7 +194,7 @@
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Hours</label>
-            <input v-model.number="entryForm.hours" type="number" step="0.5" min="0.5" max="24" required
+            <input v-model.number="entryForm.hours" type="number" step="0.01" min="0.01" max="24" required
               class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
           </div>
           <div>
