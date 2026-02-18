@@ -38,21 +38,64 @@ Connection: `DATABASE_URL` env var, defaults to `mysql://timesheet:timesheet@loc
 
 ## Deployment
 
-Hosted on **Coolify** at `157.90.167.16`.
+Hosted on **Coolify** at `157.90.167.16` (SSH port **2222**).
 
-- **Auto-deploy**: Push to `main` triggers automatic deployment via Coolify's git integration
-- **No manual SSH needed**: Coolify watches the repo and rebuilds on push
+- **URLs**: `https://timesheet.wirbauensoftware.de` (frontend), `https://timesheet-api.wirbauensoftware.de` (backend)
+- **Not auto-deploy** — must be triggered manually via Coolify PHP script
 - **Docker**: Backend and frontend each have their own `Dockerfile` (multi-stage, Node 22-alpine)
+- **Coolify UUIDs**: backend=`soog0o040o40kokgcsc0wg0g`, frontend=`p48o48scc8cs08ogko40ws40`
 
+### Deploy Steps
+
+1. Push to main:
 ```bash
-# Deploy = just push to main
 git push origin main
 ```
 
-If a schema change is needed post-deploy, run migrations inside the backend container on the server:
+2. SSH in and trigger Coolify deploys:
 ```bash
-ssh root@157.90.167.16
-docker exec -it <backend-container> npm run db:migrate
+ssh -p 2222 root@157.90.167.16
+```
+
+3. Run deploy script on server:
+```bash
+cat > /tmp/deploy.php << 'EOFPHP'
+<?php
+require "/var/www/html/vendor/autoload.php";
+$app = require_once "/var/www/html/bootstrap/app.php";
+$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel->bootstrap();
+
+$uuids = ["soog0o040o40kokgcsc0wg0g", "p48o48scc8cs08ogko40ws40"];
+foreach ($uuids as $uuid) {
+    $application = App\Models\Application::where("uuid", $uuid)->first();
+    $deployUuid = Illuminate\Support\Str::random(24);
+    $queue = App\Models\ApplicationDeploymentQueue::create([
+        "application_id" => $application->id,
+        "deployment_uuid" => $deployUuid,
+        "force_rebuild" => false,
+        "is_webhook" => false,
+        "commit" => "HEAD",
+        "status" => "queued",
+        "server_id" => 0,
+        "destination_id" => "0",
+        "application_name" => $application->name,
+        "server_name" => "localhost",
+        "only_this_server" => false,
+        "rollback" => false,
+    ]);
+    App\Jobs\ApplicationDeploymentJob::dispatch($queue->id);
+    echo $application->name . " deploy dispatched ($deployUuid)\n";
+}
+EOFPHP
+docker cp /tmp/deploy.php coolify:/tmp/deploy.php
+docker exec coolify php /tmp/deploy.php
+```
+
+### Run Migrations (when schema changes)
+```bash
+ssh -p 2222 root@157.90.167.16
+docker exec -it $(docker ps --filter "name=soog0o" --format '{{.Names}}') npm run db:migrate
 ```
 
 ## Project Structure
