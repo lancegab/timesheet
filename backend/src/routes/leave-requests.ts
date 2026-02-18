@@ -49,6 +49,91 @@ leaveRequests.get("/", async (c) => {
   return c.json(requests);
 });
 
+// GET /leave-requests/credits - computed leave credit balance
+leaveRequests.get("/credits", async (c) => {
+  const jwtUser = c.get("user");
+
+  const [user] = await db
+    .select({
+      employmentType: schema.users.employmentType,
+      createdAt: schema.users.createdAt,
+    })
+    .from(schema.users)
+    .where(eq(schema.users.id, jwtUser.userId))
+    .limit(1);
+
+  if (!user) return c.json({ error: "User not found" }, 404);
+
+  if (user.employmentType === "CONTRACT") {
+    return c.json({ error: "Leave credits not applicable for CONTRACT employees" }, 400);
+  }
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const hireDate = new Date(user.createdAt);
+  const hireYear = hireDate.getFullYear();
+  const hireMonth = hireDate.getMonth() + 1;
+
+  let accruedCredits: number;
+  if (hireYear < currentYear) {
+    accruedCredits = currentMonth;
+  } else if (hireYear === currentYear) {
+    accruedCredits = Math.max(0, currentMonth - hireMonth + 1);
+  } else {
+    accruedCredits = 0;
+  }
+
+  const hoursPerCredit = user.employmentType === "FULL_TIME" ? 8 : 4;
+  const accruedHours = accruedCredits * hoursPerCredit;
+
+  const yearStart = `${currentYear}-01-01`;
+  const yearEnd = `${currentYear}-12-31`;
+
+  const [usedResult] = await db
+    .select({
+      total: sql<string>`COALESCE(SUM(${schema.leaveRequests.hours}), 0)`,
+    })
+    .from(schema.leaveRequests)
+    .where(
+      and(
+        eq(schema.leaveRequests.userId, jwtUser.userId),
+        eq(schema.leaveRequests.status, "APPROVED"),
+        sql`${schema.leaveRequests.date} >= ${yearStart}`,
+        sql`${schema.leaveRequests.date} <= ${yearEnd}`
+      )
+    );
+
+  const [pendingResult] = await db
+    .select({
+      total: sql<string>`COALESCE(SUM(${schema.leaveRequests.hours}), 0)`,
+    })
+    .from(schema.leaveRequests)
+    .where(
+      and(
+        eq(schema.leaveRequests.userId, jwtUser.userId),
+        eq(schema.leaveRequests.status, "PENDING"),
+        sql`${schema.leaveRequests.date} >= ${yearStart}`,
+        sql`${schema.leaveRequests.date} <= ${yearEnd}`
+      )
+    );
+
+  const usedHours = parseFloat(usedResult.total) || 0;
+  const pendingHours = parseFloat(pendingResult.total) || 0;
+  const remainingHours = accruedHours - usedHours;
+
+  return c.json({
+    employmentType: user.employmentType,
+    hoursPerCredit,
+    accruedCredits,
+    accruedHours,
+    usedHours,
+    pendingHours,
+    remainingHours,
+    year: currentYear,
+  });
+});
+
 // POST /leave-requests - member creates leave request (date must be >= today + 14 days)
 leaveRequests.post("/", async (c) => {
   const user = c.get("user");

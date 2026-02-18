@@ -12,6 +12,7 @@ import reports from "./routes/reports.js";
 import adminTimeEntries from "./routes/admin-time-entries.js";
 import leaveRequests from "./routes/leave-requests.js";
 import clock, { autoClockOutStale } from "./routes/clock.js";
+import adminInvoices from "./routes/admin-invoices.js";
 
 const app = new Hono();
 
@@ -35,6 +36,7 @@ app.route("/api/reports", reports);
 app.route("/api/admin/time-entries", adminTimeEntries);
 app.route("/api/leave-requests", leaveRequests);
 app.route("/api/clock", clock);
+app.route("/api/admin/invoices", adminInvoices);
 
 const port = Number(process.env.PORT) || 3001;
 

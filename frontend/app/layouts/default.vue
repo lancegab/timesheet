@@ -39,6 +39,10 @@
                 :class="{ 'text-indigo-600 font-medium': route.path.startsWith('/admin/leave-requests') }">
                 Leave Requests
               </NuxtLink>
+              <NuxtLink to="/admin/invoices" class="text-sm text-gray-600 hover:text-gray-900"
+                :class="{ 'text-indigo-600 font-medium': route.path.startsWith('/admin/invoices') }">
+                Invoices
+              </NuxtLink>
             </template>
           </div>
           <div class="flex items-center gap-4">

@@ -8,6 +8,33 @@
       </button>
     </div>
 
+    <!-- Leave Credit Summary -->
+    <div v-if="credits" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow-sm border p-4">
+        <p class="text-xs font-medium text-gray-500 uppercase">Accrued</p>
+        <p class="text-2xl font-bold text-gray-900 mt-1">{{ credits.accruedHours }}h</p>
+        <p class="text-xs text-gray-400 mt-1">{{ credits.accruedCredits }} {{ credits.accruedCredits === 1 ? 'credit' : 'credits' }} &times; {{ credits.hoursPerCredit }}h</p>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border p-4">
+        <p class="text-xs font-medium text-gray-500 uppercase">Used</p>
+        <p class="text-2xl font-bold text-gray-900 mt-1">{{ credits.usedHours }}h</p>
+        <p class="text-xs text-gray-400 mt-1">Approved in {{ credits.year }}</p>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border p-4">
+        <p class="text-xs font-medium text-gray-500 uppercase">Pending</p>
+        <p class="text-2xl font-bold text-yellow-600 mt-1">{{ credits.pendingHours }}h</p>
+        <p class="text-xs text-gray-400 mt-1">Awaiting approval</p>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm border p-4">
+        <p class="text-xs font-medium text-gray-500 uppercase">Remaining</p>
+        <p class="text-2xl font-bold mt-1"
+           :class="credits.remainingHours < 0 ? 'text-red-600' : credits.remainingHours === 0 ? 'text-yellow-600' : 'text-green-600'">
+          {{ credits.remainingHours }}h
+        </p>
+        <p class="text-xs text-gray-400 mt-1">{{ credits.remainingHours < 0 ? 'Over limit' : 'Available' }}</p>
+      </div>
+    </div>
+
     <div class="bg-white rounded-lg shadow-sm border overflow-hidden">
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
@@ -81,7 +108,19 @@
 <script setup lang="ts">
 const { apiFetch } = useApi()
 
+interface LeaveCredits {
+  employmentType: 'FULL_TIME' | 'PART_TIME'
+  hoursPerCredit: number
+  accruedCredits: number
+  accruedHours: number
+  usedHours: number
+  pendingHours: number
+  remainingHours: number
+  year: number
+}
+
 const requests = ref<any[]>([])
+const credits = ref<LeaveCredits | null>(null)
 const showForm = ref(false)
 const formError = ref('')
 
@@ -101,6 +140,14 @@ async function loadRequests() {
   requests.value = await apiFetch<any[]>('/leave-requests')
 }
 
+async function loadCredits() {
+  try {
+    credits.value = await apiFetch<LeaveCredits>('/leave-requests/credits')
+  } catch {
+    credits.value = null
+  }
+}
+
 async function submitRequest() {
   formError.value = ''
   try {
@@ -112,7 +159,7 @@ async function submitRequest() {
     form.date = ''
     form.hours = 8
     form.reason = ''
-    await loadRequests()
+    await Promise.all([loadRequests(), loadCredits()])
   } catch (e: any) {
     formError.value = e.message
   }
@@ -121,8 +168,8 @@ async function submitRequest() {
 async function cancelRequest(id: string) {
   if (!confirm('Cancel this leave request?')) return
   await apiFetch(`/leave-requests/${id}`, { method: 'DELETE' })
-  await loadRequests()
+  await Promise.all([loadRequests(), loadCredits()])
 }
 
-onMounted(loadRequests)
+onMounted(() => Promise.all([loadRequests(), loadCredits()]))
 </script>
