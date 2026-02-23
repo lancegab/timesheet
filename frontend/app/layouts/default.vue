@@ -128,6 +128,39 @@
       </div>
     </div>
 
+    <!-- Notes Bar -->
+    <div v-if="auth.isAuthenticated.value && clockState.active.value" class="bg-gray-800 text-white border-t border-gray-700">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center h-10 gap-3">
+          <button @click="showNotes = !showNotes" class="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white transition">
+            <span class="transform transition-transform" :class="showNotes ? 'rotate-90' : ''">&#9654;</span>
+            <span>Notes</span>
+            <span v-if="clockState.notes.value.length" class="bg-gray-600 text-gray-200 rounded-full px-1.5 text-xs font-mono">{{ clockState.notes.value.length }}</span>
+          </button>
+          <template v-if="!showNotes && clockState.notes.value.length">
+            <span class="text-xs text-gray-500 truncate max-w-md">{{ clockState.notes.value.join(' / ') }}</span>
+          </template>
+        </div>
+        <div v-if="showNotes" class="pb-3 space-y-2">
+          <div v-if="clockState.notes.value.length" class="space-y-1">
+            <div v-for="(note, i) in clockState.notes.value" :key="i" class="flex items-center gap-2 group">
+              <span class="text-xs text-gray-400 font-mono w-4 text-right shrink-0">{{ i + 1 }}.</span>
+              <span class="text-sm text-gray-200 flex-1">{{ note }}</span>
+              <button @click="clockState.removeNote(i)" class="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition text-xs px-1">&times;</button>
+            </div>
+          </div>
+          <form @submit.prevent="handleAddNote" class="flex items-center gap-2">
+            <input v-model="newNote" type="text" placeholder="What are you working on?"
+              class="flex-1 bg-gray-700 text-white text-sm rounded-md border border-gray-600 px-3 py-1.5 placeholder-gray-400 focus:ring-indigo-500 focus:border-indigo-500" />
+            <button type="submit" :disabled="!newNote.trim()"
+              class="px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium transition">
+              Add
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
     <!-- Auto-closed session banner -->
     <div v-if="clockState.autoClosedSession.value" class="bg-amber-50 border-b border-amber-200 px-4 py-3">
       <div class="max-w-7xl mx-auto flex justify-between items-center">
@@ -203,12 +236,20 @@ const switchDescription = ref('')
 const clockOutDescription = ref('')
 const showSwitchModal = ref(false)
 const showClockOut = ref(false)
+const showNotes = ref(false)
+const newNote = ref('')
 const clockError = ref('')
 
 function formatTime(dateStr?: string) {
   if (!dateStr) return ''
   const d = new Date(dateStr)
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function handleAddNote() {
+  if (!newNote.value.trim()) return
+  clockState.addNote(newNote.value)
+  newNote.value = ''
 }
 
 function workTypeLabel(wt?: string) {
@@ -247,7 +288,7 @@ function openSwitchModal() {
   if (!switchProjectId.value) {
     switchProjectId.value = clockState.session.value?.projectId || ''
   }
-  switchDescription.value = ''
+  switchDescription.value = clockState.getDescription()
   clockError.value = ''
   showSwitchModal.value = true
 }
@@ -259,13 +300,14 @@ async function handleSwitch() {
     showSwitchModal.value = false
     switchProjectId.value = ''
     switchWorkType.value = clockState.session.value?.workType || 'DEVELOPMENT'
+    newNote.value = ''
   } catch (e: any) {
     clockError.value = e.message
   }
 }
 
 function openClockOut() {
-  clockOutDescription.value = ''
+  clockOutDescription.value = clockState.getDescription()
   clockError.value = ''
   showClockOut.value = true
 }

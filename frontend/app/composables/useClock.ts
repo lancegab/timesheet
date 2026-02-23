@@ -5,6 +5,7 @@ interface ClockSession {
   projectName: string
   segmentStartAt: string
   workType: string
+  description: string | null
   elapsedSeconds: number
   segmentSeconds: number
 }
@@ -25,6 +26,7 @@ export function useClock() {
   const elapsed = useState<number>('clock_elapsed', () => 0)
   const segmentElapsed = useState<number>('clock_segment_elapsed', () => 0)
   const autoClosedSession = useState<AutoClosedSession | null>('clock_auto_closed', () => null)
+  const notes = useState<string[]>('clock_notes', () => [])
 
   let timerInterval: ReturnType<typeof setInterval> | null = null
 
@@ -55,18 +57,52 @@ export function useClock() {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
   }
 
+  async function saveNotes() {
+    const description = notes.value.join('\n')
+    try {
+      await apiFetch('/clock/notes', {
+        method: 'PUT',
+        body: JSON.stringify({ description }),
+      })
+    } catch {
+      // ignore
+    }
+  }
+
+  function addNote(text: string) {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    notes.value = [...notes.value, trimmed]
+    saveNotes()
+  }
+
+  function removeNote(index: number) {
+    notes.value = notes.value.filter((_, i) => i !== index)
+    saveNotes()
+  }
+
+  function getDescription(): string {
+    return notes.value.join('\n')
+  }
+
   async function checkStatus() {
     try {
       const data = await apiFetch<any>('/clock/status')
       if (data.active) {
         active.value = true
         session.value = data.session
+        if (data.session.description) {
+          notes.value = data.session.description.split('\n').filter(Boolean)
+        } else {
+          notes.value = []
+        }
         startTimer()
       } else {
         active.value = false
         session.value = null
         elapsed.value = 0
         segmentElapsed.value = 0
+        notes.value = []
         stopTimer()
         if (data.autoClosedSession) {
           autoClosedSession.value = data.autoClosedSession
@@ -90,9 +126,11 @@ export function useClock() {
       projectName: '',
       segmentStartAt: data.clockInAt,
       workType: data.workType || workType,
+      description: null,
       elapsedSeconds: 0,
       segmentSeconds: 0,
     }
+    notes.value = []
     startTimer()
   }
 
@@ -128,11 +166,15 @@ export function useClock() {
     elapsed,
     segmentElapsed,
     autoClosedSession,
+    notes,
     formatElapsed,
     checkStatus,
     clockIn,
     switchProject,
     clockOut,
     dismissAutoClosed,
+    addNote,
+    removeNote,
+    getDescription,
   }
 }

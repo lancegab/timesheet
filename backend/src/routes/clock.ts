@@ -32,6 +32,7 @@ clock.get("/status", async (c) => {
       segmentStartAt: schema.clockSessions.segmentStartAt,
       workType: schema.clockSessions.workType,
       autoClockOut: schema.clockSessions.autoClockOut,
+      description: schema.clockSessions.description,
     })
     .from(schema.clockSessions)
     .leftJoin(schema.projects, eq(schema.clockSessions.projectId, schema.projects.id))
@@ -95,10 +96,43 @@ clock.get("/status", async (c) => {
       projectName: session.projectName,
       segmentStartAt: segStart,
       workType: session.workType,
+      description: session.description,
       elapsedSeconds: Math.floor((Date.now() - new Date(session.clockInAt).getTime()) / 1000),
       segmentSeconds: Math.floor((Date.now() - new Date(segStart).getTime()) / 1000),
     },
   });
+});
+
+// PUT /clock/notes - update active session description
+clock.put("/notes", async (c) => {
+  const user = c.get("user");
+  const { description } = await c.req.json();
+
+  if (typeof description !== "string") {
+    return c.json({ error: "Description must be a string" }, 400);
+  }
+
+  const [session] = await db
+    .select({ id: schema.clockSessions.id })
+    .from(schema.clockSessions)
+    .where(
+      and(
+        eq(schema.clockSessions.userId, user.userId),
+        isNull(schema.clockSessions.clockOutAt)
+      )
+    )
+    .limit(1);
+
+  if (!session) {
+    return c.json({ error: "No active clock session" }, 400);
+  }
+
+  await db
+    .update(schema.clockSessions)
+    .set({ description })
+    .where(eq(schema.clockSessions.id, session.id));
+
+  return c.json({ message: "Notes updated" });
 });
 
 // POST /clock/in - requires projectId
@@ -187,7 +221,7 @@ clock.post("/switch", async (c) => {
   });
 
   // Update session to new project/workType and reset segment
-  const updates: Record<string, any> = { projectId, segmentStartAt: now };
+  const updates: Record<string, any> = { projectId, segmentStartAt: now, description: null };
   if (workType) updates.workType = workType;
   await db
     .update(schema.clockSessions)
