@@ -46,6 +46,11 @@
                 {{ r.status }}
               </span>
               <span v-if="r.addedBy" class="ml-1 text-xs text-purple-600">(admin-added)</span>
+              <div v-if="r.reviewerName && r.status !== 'PENDING'" class="text-xs text-gray-500 mt-0.5">
+                by {{ r.reviewerName }}
+                <span v-if="r.reviewedAt">on {{ new Date(r.reviewedAt).toLocaleDateString() }}</span>
+              </div>
+              <div v-if="r.reviewNote" class="text-xs text-red-500 mt-0.5 italic">{{ r.reviewNote }}</div>
             </td>
             <td class="px-4 py-3 text-right space-x-2">
               <template v-if="r.status === 'PENDING'">

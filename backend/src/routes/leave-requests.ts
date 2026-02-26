@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, aliasedTable } from "drizzle-orm";
 import { v4 as uuid } from "uuid";
 import { db, schema } from "../db/index.js";
 import { authMiddleware, adminMiddleware } from "../middleware/auth.js";
@@ -13,6 +13,8 @@ leaveRequests.get("/", async (c) => {
   const user = c.get("user");
   const statusFilter = c.req.query("status");
   const userId = c.req.query("userId");
+
+  const reviewer = aliasedTable(schema.users, "reviewer");
 
   const conditions: any[] = [];
 
@@ -38,11 +40,13 @@ leaveRequests.get("/", async (c) => {
       reviewedBy: schema.leaveRequests.reviewedBy,
       reviewedAt: schema.leaveRequests.reviewedAt,
       reviewNote: schema.leaveRequests.reviewNote,
+      reviewerName: reviewer.fullName,
       addedBy: schema.leaveRequests.addedBy,
       createdAt: schema.leaveRequests.createdAt,
     })
     .from(schema.leaveRequests)
     .innerJoin(schema.users, eq(schema.leaveRequests.userId, schema.users.id))
+    .leftJoin(reviewer, eq(schema.leaveRequests.reviewedBy, reviewer.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(schema.leaveRequests.createdAt);
 
