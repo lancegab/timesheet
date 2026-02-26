@@ -54,8 +54,8 @@
             <td class="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">{{ r.reason || '-' }}</td>
             <td class="px-4 py-3 text-sm">
               <span class="px-2 py-0.5 rounded-full text-xs font-medium"
-                :class="r.status === 'APPROVED' ? 'bg-green-100 text-green-700' : r.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'">
-                {{ r.status }}
+                :class="r.status === 'APPROVED' ? 'bg-green-100 text-green-700' : r.status === 'REJECTED' ? 'bg-red-100 text-red-700' : r.status === 'PARTIALLY_APPROVED' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'">
+                {{ r.status === 'PARTIALLY_APPROVED' ? '1 of 2 approved' : r.status }}
               </span>
             </td>
             <td class="px-4 py-3 text-sm text-gray-500">{{ r.reviewNote || '-' }}</td>

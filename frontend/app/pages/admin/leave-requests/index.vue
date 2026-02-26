@@ -16,6 +16,7 @@
           class="px-3 py-1.5 border border-gray-300 rounded-md text-sm">
           <option value="">All</option>
           <option value="PENDING">Pending</option>
+          <option value="PARTIALLY_APPROVED">Partially Approved</option>
           <option value="APPROVED">Approved</option>
           <option value="REJECTED">Rejected</option>
         </select>
@@ -42,18 +43,22 @@
             <td class="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">{{ r.reason || '-' }}</td>
             <td class="px-4 py-3 text-sm">
               <span class="px-2 py-0.5 rounded-full text-xs font-medium"
-                :class="r.status === 'APPROVED' ? 'bg-green-100 text-green-700' : r.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'">
-                {{ r.status }}
+                :class="r.status === 'APPROVED' ? 'bg-green-100 text-green-700' : r.status === 'REJECTED' ? 'bg-red-100 text-red-700' : r.status === 'PARTIALLY_APPROVED' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'">
+                {{ r.status === 'PARTIALLY_APPROVED' ? '1 of 2 APPROVED' : r.status }}
               </span>
               <span v-if="r.addedBy" class="ml-1 text-xs text-purple-600">(admin-added)</span>
               <div v-if="r.reviewerName && r.status !== 'PENDING'" class="text-xs text-gray-500 mt-0.5">
-                by {{ r.reviewerName }}
+                1st: {{ r.reviewerName }}
                 <span v-if="r.reviewedAt">on {{ new Date(r.reviewedAt).toLocaleDateString() }}</span>
+              </div>
+              <div v-if="r.reviewer2Name && (r.status === 'APPROVED' || r.status === 'REJECTED')" class="text-xs text-gray-500 mt-0.5">
+                2nd: {{ r.reviewer2Name }}
+                <span v-if="r.reviewedAt2">on {{ new Date(r.reviewedAt2).toLocaleDateString() }}</span>
               </div>
               <div v-if="r.reviewNote" class="text-xs text-red-500 mt-0.5 italic">{{ r.reviewNote }}</div>
             </td>
             <td class="px-4 py-3 text-right space-x-2">
-              <template v-if="r.status === 'PENDING'">
+              <template v-if="r.status === 'PENDING' || r.status === 'PARTIALLY_APPROVED'">
                 <button @click="approveRequest(r.id)" class="text-green-600 hover:text-green-800 text-sm">Approve</button>
                 <button @click="openReject(r)" class="text-red-600 hover:text-red-800 text-sm">Reject</button>
               </template>

@@ -15,6 +15,7 @@ leaveRequests.get("/", async (c) => {
   const userId = c.req.query("userId");
 
   const reviewer = aliasedTable(schema.users, "reviewer");
+  const reviewer2 = aliasedTable(schema.users, "reviewer2");
 
   const conditions: any[] = [];
 
@@ -41,12 +42,16 @@ leaveRequests.get("/", async (c) => {
       reviewedAt: schema.leaveRequests.reviewedAt,
       reviewNote: schema.leaveRequests.reviewNote,
       reviewerName: reviewer.fullName,
+      reviewedBy2: schema.leaveRequests.reviewedBy2,
+      reviewedAt2: schema.leaveRequests.reviewedAt2,
+      reviewer2Name: reviewer2.fullName,
       addedBy: schema.leaveRequests.addedBy,
       createdAt: schema.leaveRequests.createdAt,
     })
     .from(schema.leaveRequests)
     .innerJoin(schema.users, eq(schema.leaveRequests.userId, schema.users.id))
     .leftJoin(reviewer, eq(schema.leaveRequests.reviewedBy, reviewer.id))
+    .leftJoin(reviewer2, eq(schema.leaveRequests.reviewedBy2, reviewer2.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(schema.leaveRequests.createdAt);
 
@@ -116,7 +121,7 @@ leaveRequests.get("/credits", async (c) => {
     .where(
       and(
         eq(schema.leaveRequests.userId, jwtUser.userId),
-        eq(schema.leaveRequests.status, "PENDING"),
+        sql`${schema.leaveRequests.status} IN ('PENDING', 'PARTIALLY_APPROVED')`,
         sql`${schema.leaveRequests.date} >= ${yearStart}`,
         sql`${schema.leaveRequests.date} <= ${yearEnd}`
       )
@@ -191,6 +196,8 @@ leaveRequests.post("/admin", adminMiddleware, async (c) => {
     status: "APPROVED",
     reviewedBy: admin.userId,
     reviewedAt: new Date(),
+    reviewedBy2: admin.userId,
+    reviewedAt2: new Date(),
     addedBy: admin.userId,
   });
 
@@ -221,31 +228,46 @@ leaveRequests.put("/:id/approve", adminMiddleware, async (c) => {
     .limit(1);
 
   if (!request) return c.json({ error: "Request not found" }, 404);
-  if (request.status !== "PENDING") {
-    return c.json({ error: "Only pending requests can be approved" }, 400);
+
+  if (request.status === "PENDING") {
+    // First approval → PARTIALLY_APPROVED
+    await db
+      .update(schema.leaveRequests)
+      .set({
+        status: "PARTIALLY_APPROVED",
+        reviewedBy: admin.userId,
+        reviewedAt: new Date(),
+      })
+      .where(eq(schema.leaveRequests.id, id));
+
+    return c.json({ message: "First approval recorded (1 of 2)" });
   }
 
-  await db
-    .update(schema.leaveRequests)
-    .set({
-      status: "APPROVED",
-      reviewedBy: admin.userId,
-      reviewedAt: new Date(),
-    })
-    .where(eq(schema.leaveRequests.id, id));
+  if (request.status === "PARTIALLY_APPROVED") {
+    // Second approval → APPROVED + create time entry
+    await db
+      .update(schema.leaveRequests)
+      .set({
+        status: "APPROVED",
+        reviewedBy2: admin.userId,
+        reviewedAt2: new Date(),
+      })
+      .where(eq(schema.leaveRequests.id, id));
 
-  // Create time entry for approved leave
-  const entryId = uuid();
-  await db.insert(schema.timeEntries).values({
-    id: entryId,
-    userId: request.userId,
-    entryType: "APPROVED_LEAVE",
-    date: request.date,
-    hours: String(request.hours),
-    description: request.reason || "Approved leave",
-  });
+    const entryId = uuid();
+    await db.insert(schema.timeEntries).values({
+      id: entryId,
+      userId: request.userId,
+      entryType: "APPROVED_LEAVE",
+      date: request.date,
+      hours: String(request.hours),
+      description: request.reason || "Approved leave",
+    });
 
-  return c.json({ message: "Leave approved", timeEntryId: entryId });
+    return c.json({ message: "Leave fully approved (2 of 2)", timeEntryId: entryId });
+  }
+
+  return c.json({ error: "Only pending or partially approved requests can be approved" }, 400);
 });
 
 // PUT /leave-requests/:id/reject - admin rejects
@@ -265,18 +287,27 @@ leaveRequests.put("/:id/reject", adminMiddleware, async (c) => {
     .limit(1);
 
   if (!request) return c.json({ error: "Request not found" }, 404);
-  if (request.status !== "PENDING") {
-    return c.json({ error: "Only pending requests can be rejected" }, 400);
+  if (request.status !== "PENDING" && request.status !== "PARTIALLY_APPROVED") {
+    return c.json({ error: "Only pending or partially approved requests can be rejected" }, 400);
+  }
+
+  const rejectFields: any = {
+    status: "REJECTED",
+    reviewNote: note,
+  };
+
+  if (request.status === "PENDING") {
+    rejectFields.reviewedBy = admin.userId;
+    rejectFields.reviewedAt = new Date();
+  } else {
+    // PARTIALLY_APPROVED: reviewer1 is already set, use reviewer2 for the rejector
+    rejectFields.reviewedBy2 = admin.userId;
+    rejectFields.reviewedAt2 = new Date();
   }
 
   await db
     .update(schema.leaveRequests)
-    .set({
-      status: "REJECTED",
-      reviewedBy: admin.userId,
-      reviewedAt: new Date(),
-      reviewNote: note,
-    })
+    .set(rejectFields)
     .where(eq(schema.leaveRequests.id, id));
 
   return c.json({ message: "Leave rejected" });
