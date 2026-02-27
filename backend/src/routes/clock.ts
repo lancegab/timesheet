@@ -67,7 +67,7 @@ clock.get("/status", async (c) => {
       date: entryDate as any,
       hours: String(segmentHours),
       workType: session.workType as any,
-      description: "Auto clock-out - please update description",
+      description: session.description || "Auto clock-out - please update description",
     });
 
     await db
@@ -338,7 +338,7 @@ export async function autoClockOutStale() {
       date: entryDate as any,
       hours: String(hours),
       workType: session.workType as any,
-      description: "Auto clock-out - please update description",
+      description: session.description || "Auto clock-out - please update description",
     });
 
     await db
