@@ -76,6 +76,7 @@
       <table class="min-w-full mb-4">
         <thead>
           <tr class="bg-indigo-600 text-white">
+            <th class="w-8 hide-in-pdf"></th>
             <th class="text-left text-xs font-semibold uppercase py-2 px-4">Description</th>
             <th class="text-right text-xs font-semibold uppercase py-2 px-4 w-24">Hours</th>
             <th class="text-right text-xs font-semibold uppercase py-2 px-4 w-28">Rate</th>
@@ -84,7 +85,16 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(item, index) in lineItems" :key="item.id" class="border-b border-gray-200">
+          <tr v-for="(item, index) in lineItems" :key="item.id"
+            class="border-b border-gray-200"
+            :class="{ 'opacity-40': dragIndex === index, 'border-t-2 border-t-indigo-400': dropTarget === index }"
+            draggable="true"
+            @dragstart="onDragStart(index, $event)"
+            @dragover.prevent="onDragOver(index)"
+            @dragend="onDragEnd">
+            <td class="py-2 px-1 hide-in-pdf">
+              <span class="cursor-grab text-gray-400 hover:text-gray-600 select-none text-sm">&#8942;&#8942;</span>
+            </td>
             <td class="py-2 px-4">
               <input v-model="item.description" type="text"
                 class="invoice-input w-full px-2 py-1 border border-gray-200 rounded text-sm" />
@@ -107,7 +117,7 @@
             </td>
           </tr>
           <tr v-if="lineItems.length === 0">
-            <td colspan="5" class="py-8 text-center text-gray-400 text-sm">
+            <td colspan="6" class="py-8 text-center text-gray-400 text-sm">
               No line items. Load from timesheet data or add manually.
             </td>
           </tr>
@@ -215,6 +225,29 @@ function addLineItem() {
 
 function removeLineItem(index: number) {
   lineItems.value.splice(index, 1)
+}
+
+const dragIndex = ref<number | null>(null)
+const dropTarget = ref<number | null>(null)
+
+function onDragStart(index: number, e: DragEvent) {
+  dragIndex.value = index
+  e.dataTransfer!.effectAllowed = 'move'
+}
+
+function onDragOver(index: number) {
+  dropTarget.value = index
+}
+
+function onDragEnd() {
+  if (dragIndex.value !== null && dropTarget.value !== null && dragIndex.value !== dropTarget.value) {
+    const items = [...lineItems.value]
+    const [moved] = items.splice(dragIndex.value, 1)
+    items.splice(dropTarget.value, 0, moved)
+    lineItems.value = items
+  }
+  dragIndex.value = null
+  dropTarget.value = null
 }
 
 function updateAmount(item: LineItem) {
