@@ -257,6 +257,18 @@ async function exportPDF() {
 
   invoiceRef.value.classList.add('pdf-export-mode')
 
+  // Replace inputs with spans so html2canvas renders text cleanly
+  const swapped: { span: HTMLSpanElement; input: HTMLInputElement; parent: HTMLElement; next: Node | null }[] = []
+  invoiceRef.value.querySelectorAll('input').forEach((input) => {
+    const span = document.createElement('span')
+    span.textContent = input.value
+    span.className = input.className
+    const parent = input.parentElement!
+    const next = input.nextSibling
+    parent.replaceChild(span, input)
+    swapped.push({ span, input, parent, next })
+  })
+
   const opt = {
     margin: 0.5,
     filename: `invoice-${invoice.number || 'draft'}.pdf`,
@@ -267,6 +279,11 @@ async function exportPDF() {
   }
 
   await html2pdf().set(opt).from(invoiceRef.value).save()
+
+  // Restore inputs
+  swapped.forEach(({ span, input, parent }) => {
+    parent.replaceChild(input, span)
+  })
 
   invoiceRef.value.classList.remove('pdf-export-mode')
 }
