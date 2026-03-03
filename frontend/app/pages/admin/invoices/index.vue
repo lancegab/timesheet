@@ -141,7 +141,7 @@
       <!-- Notes -->
       <div>
         <h3 class="text-xs font-semibold text-gray-500 uppercase mb-2">Notes</h3>
-        <textarea v-model="invoice.notes" rows="3" placeholder="Additional notes..."
+        <textarea v-model="invoice.notes" rows="8" placeholder="Additional notes..."
           class="invoice-input w-full px-3 py-2 border border-gray-300 rounded text-sm"></textarea>
       </div>
     </div>
@@ -170,12 +170,12 @@ const invoice = reactive({
   number: '',
   date: new Date().toISOString().split('T')[0],
   dueDate: '',
-  fromName: '',
-  fromEmail: '',
-  billToName: '',
-  billToEmail: '',
-  billToCompany: '',
-  notes: '',
+  fromName: 'Lance Labrague',
+  fromEmail: 'lance.labrague@gmail.com',
+  billToName: 'Kamil Gawlik',
+  billToEmail: 'buchhaltung@digirift.com',
+  billToCompany: 'DigiRift GmbH',
+  notes: `Company Name: DigiRift GmbH\nAddress: Rothenbaumchaussee 17, 20148 Hamburg\nTax Number: DE347780824\n\nEmployee Name: Lance Gabriel S. Labrague\nAddress: 106B, 9th St., San Antonio Village, Apas, Cebu City, Cebu, Philippines\nTIN: 350-020-976-000\n\nNote: Tax liability of the recipient of the services`,
 })
 
 let nextId = 1
