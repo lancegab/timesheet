@@ -142,7 +142,8 @@
       <div>
         <h3 class="text-xs font-semibold text-gray-500 uppercase mb-2">Notes</h3>
         <textarea v-model="invoice.notes" rows="8" placeholder="Additional notes..."
-          class="invoice-input w-full px-3 py-2 border border-gray-300 rounded text-sm"></textarea>
+          class="invoice-input w-full px-3 py-2 border border-gray-300 rounded text-sm notes-textarea"></textarea>
+        <div class="notes-pdf-div hidden text-sm whitespace-pre-line">{{ invoice.notes }}</div>
       </div>
     </div>
   </div>
@@ -265,6 +266,7 @@ async function exportPDF() {
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true },
     jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' as const },
+    pagebreak: { mode: ['avoid-all', 'css'] },
   }
 
   await html2pdf().set(opt).from(invoiceRef.value).save()
@@ -295,5 +297,18 @@ onMounted(() => {
   box-shadow: none !important;
   padding-left: 0 !important;
   padding-right: 0 !important;
+}
+
+.pdf-export-mode .notes-textarea {
+  display: none !important;
+}
+
+.pdf-export-mode .notes-pdf-div {
+  display: block !important;
+}
+
+.pdf-export-mode tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 </style>
