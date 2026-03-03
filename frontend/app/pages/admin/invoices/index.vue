@@ -72,57 +72,54 @@
         </div>
       </div>
 
-      <!-- Line Items Table -->
-      <table class="min-w-full mb-4">
-        <thead>
-          <tr class="bg-indigo-600 text-white">
-            <th class="w-8 hide-in-pdf"></th>
-            <th class="text-left text-xs font-semibold uppercase py-2 px-4">Description</th>
-            <th class="text-right text-xs font-semibold uppercase py-2 px-4 w-24">Hours</th>
-            <th class="text-right text-xs font-semibold uppercase py-2 px-4 w-28">Rate</th>
-            <th class="text-right text-xs font-semibold uppercase py-2 px-4 w-32">Amount</th>
-            <th class="w-10 hide-in-pdf"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(item, index) in lineItems" :key="item.id"
-            class="border-b border-gray-200"
-            :class="{ 'opacity-40': dragIndex === index, 'border-t-2 border-t-indigo-400': dropTarget === index }"
-            draggable="true"
-            @dragstart="onDragStart(index, $event)"
-            @dragover.prevent="onDragOver(index)"
-            @dragend="onDragEnd">
-            <td class="py-2 px-1 hide-in-pdf">
-              <span class="cursor-grab text-gray-400 hover:text-gray-600 select-none text-sm">&#8942;&#8942;</span>
-            </td>
-            <td class="py-2 px-4">
-              <input v-model="item.description" type="text"
-                class="invoice-input w-full px-2 py-1 border border-gray-200 rounded text-sm" />
-            </td>
-            <td class="py-2 px-4">
-              <input v-model.number="item.hours" type="number" step="0.01" min="0"
-                @input="updateAmount(item)"
-                class="invoice-input w-full px-2 py-1 border border-gray-200 rounded text-sm text-right" />
-            </td>
-            <td class="py-2 px-4">
-              <input v-model.number="item.rate" type="number" step="0.01" min="0"
-                @input="updateAmount(item)"
-                class="invoice-input w-full px-2 py-1 border border-gray-200 rounded text-sm text-right" />
-            </td>
-            <td class="py-2 px-4 text-right text-sm font-semibold text-gray-900">
-              {{ item.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
-            </td>
-            <td class="py-2 pl-2 hide-in-pdf">
-              <button @click="removeLineItem(index)" class="text-red-500 hover:text-red-700 text-lg">&times;</button>
-            </td>
-          </tr>
-          <tr v-if="lineItems.length === 0">
-            <td colspan="6" class="py-8 text-center text-gray-400 text-sm">
-              No line items. Load from timesheet data or add manually.
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <!-- Line Items -->
+      <div class="mb-4">
+        <!-- Header -->
+        <div class="flex bg-indigo-600 text-white rounded-t">
+          <div class="w-8 shrink-0 hide-in-pdf"></div>
+          <div class="flex-1 text-left text-xs font-semibold uppercase py-2 px-4">Description</div>
+          <div class="w-24 text-right text-xs font-semibold uppercase py-2 px-4">Hours</div>
+          <div class="w-28 text-right text-xs font-semibold uppercase py-2 px-4">Rate</div>
+          <div class="w-32 text-right text-xs font-semibold uppercase py-2 px-4">Amount</div>
+          <div class="w-10 hide-in-pdf"></div>
+        </div>
+        <!-- Rows -->
+        <div v-for="(item, index) in lineItems" :key="item.id"
+          class="flex items-center border-b border-gray-200 line-item-row"
+          :class="{ 'opacity-40': dragIndex === index, 'border-t-2 border-t-indigo-400': dropTarget === index }"
+          draggable="true"
+          @dragstart="onDragStart(index, $event)"
+          @dragover.prevent="onDragOver(index)"
+          @dragend="onDragEnd">
+          <div class="w-8 shrink-0 py-2 px-1 hide-in-pdf">
+            <span class="cursor-grab text-gray-400 hover:text-gray-600 select-none text-sm">&#8942;&#8942;</span>
+          </div>
+          <div class="flex-1 py-2 px-4">
+            <input v-model="item.description" type="text"
+              class="invoice-input w-full px-2 py-1 border border-gray-200 rounded text-sm" />
+          </div>
+          <div class="w-24 py-2 px-4">
+            <input v-model.number="item.hours" type="number" step="0.01" min="0"
+              @input="updateAmount(item)"
+              class="invoice-input w-full px-2 py-1 border border-gray-200 rounded text-sm text-right" />
+          </div>
+          <div class="w-28 py-2 px-4">
+            <input v-model.number="item.rate" type="number" step="0.01" min="0"
+              @input="updateAmount(item)"
+              class="invoice-input w-full px-2 py-1 border border-gray-200 rounded text-sm text-right" />
+          </div>
+          <div class="w-32 py-2 px-4 text-right text-sm font-semibold text-gray-900">
+            {{ item.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+          </div>
+          <div class="w-10 py-2 pl-2 hide-in-pdf">
+            <button @click="removeLineItem(index)" class="text-red-500 hover:text-red-700 text-lg">&times;</button>
+          </div>
+        </div>
+        <!-- Empty state -->
+        <div v-if="lineItems.length === 0" class="py-8 text-center text-gray-400 text-sm border-b border-gray-200">
+          No line items. Load from timesheet data or add manually.
+        </div>
+      </div>
 
       <button @click="addLineItem" class="text-sm text-indigo-600 hover:text-indigo-800 mb-8 hide-in-pdf">
         + Add Line Item
@@ -266,7 +263,7 @@ async function exportPDF() {
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true },
     jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' as const },
-    pagebreak: { mode: ['avoid-all', 'css'] },
+    pagebreak: { mode: ['avoid-all', 'css'], avoid: ['.line-item-row'] },
   }
 
   await html2pdf().set(opt).from(invoiceRef.value).save()
@@ -307,7 +304,7 @@ onMounted(() => {
   display: block !important;
 }
 
-.pdf-export-mode tr {
+.pdf-export-mode .line-item-row {
   break-inside: avoid;
   page-break-inside: avoid;
 }
