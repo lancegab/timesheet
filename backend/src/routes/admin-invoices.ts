@@ -23,6 +23,7 @@ adminInvoices.get("/line-items", async (c) => {
       memberName: schema.users.fullName,
       projectId: schema.timeEntries.projectId,
       projectName: schema.projects.name,
+      entryType: schema.timeEntries.entryType,
       totalHours: sql<string>`COALESCE(SUM(${schema.timeEntries.hours}), 0)`,
     })
     .from(schema.timeEntries)
@@ -34,24 +35,31 @@ adminInvoices.get("/line-items", async (c) => {
     .where(
       and(
         sql`${schema.timeEntries.date} >= ${startDate}`,
-        sql`${schema.timeEntries.date} <= ${endDate}`,
-        eq(schema.timeEntries.entryType, "REGULAR")
+        sql`${schema.timeEntries.date} <= ${endDate}`
       )
     )
     .groupBy(
       schema.timeEntries.userId,
       schema.users.fullName,
       schema.timeEntries.projectId,
-      schema.projects.name
+      schema.projects.name,
+      schema.timeEntries.entryType
     )
     .orderBy(schema.users.fullName, schema.projects.name);
+
+  const entryLabel: Record<string, string> = {
+    PAID_LEAVE: "Paid Leave",
+    APPROVED_LEAVE: "Approved Leave",
+  };
 
   const result = lineItems.map((item) => ({
     userId: item.userId,
     memberName: item.memberName,
     projectId: item.projectId,
     projectName: item.projectName || "Unassigned",
-    description: `${item.memberName} - ${item.projectName || "Unassigned"}`,
+    description: entryLabel[item.entryType]
+      ? `${item.memberName} - ${entryLabel[item.entryType]}`
+      : `${item.memberName} - ${item.projectName || "Unassigned"}`,
     hours: Number(item.totalHours),
   }));
 
