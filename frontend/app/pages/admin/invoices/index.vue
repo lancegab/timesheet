@@ -262,7 +262,10 @@ async function exportPDF() {
   invoiceRef.value.querySelectorAll('input').forEach((input) => {
     const span = document.createElement('span')
     span.textContent = input.value
-    span.className = input.className
+    span.style.display = 'block'
+    span.style.fontSize = '0.875rem'
+    span.style.padding = '0.25rem 0'
+    if (input.classList.contains('text-right')) span.style.textAlign = 'right'
     const parent = input.parentElement!
     const next = input.nextSibling
     parent.replaceChild(span, input)
