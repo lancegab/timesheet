@@ -137,6 +137,7 @@
             <span>Notes</span>
             <span v-if="clockState.notes.value.length" class="bg-gray-600 text-gray-200 rounded-full px-1.5 text-xs font-mono">{{ clockState.notes.value.length }}</span>
           </button>
+          <span v-if="clockState.notesSaveStatus.value === 'error'" @click="clockState.retrySaveNotes()" class="text-xs text-red-400 cursor-pointer hover:text-red-300">Notes not saved — click to retry</span>
           <template v-if="!showNotes && clockState.notes.value.length">
             <span class="text-xs text-gray-500 truncate max-w-md">{{ clockState.notes.value.join(' / ') }}</span>
           </template>
@@ -326,7 +327,23 @@ watch(() => clockState.session.value?.workType, (wt) => {
   if (wt) switchWorkType.value = wt
 })
 
+function handleBeforeUnload() {
+  if (clockState.active.value && clockState.notes.value.length) {
+    const description = clockState.notes.value.join('\n')
+    const config = useRuntimeConfig()
+    const token = auth.token.value
+    if (token) {
+      const xhr = new XMLHttpRequest()
+      xhr.open('PUT', `${config.public.apiBase}/clock/notes`, false)
+      xhr.setRequestHeader('Content-Type', 'application/json')
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+      try { xhr.send(JSON.stringify({ description })) } catch {}
+    }
+  }
+}
+
 onMounted(async () => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
   if (auth.isAuthenticated.value) {
     await loadProjects()
     await clockState.checkStatus()
@@ -334,5 +351,9 @@ onMounted(async () => {
       switchWorkType.value = clockState.session.value.workType
     }
   }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 </script>

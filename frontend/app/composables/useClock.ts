@@ -27,8 +27,10 @@ export function useClock() {
   const segmentElapsed = useState<number>('clock_segment_elapsed', () => 0)
   const autoClosedSession = useState<AutoClosedSession | null>('clock_auto_closed', () => null)
   const notes = useState<string[]>('clock_notes', () => [])
+  const notesSaveStatus = useState<'saved' | 'saving' | 'error'>('clock_notes_status', () => 'saved')
 
   let timerInterval: ReturnType<typeof setInterval> | null = null
+  let notesSaveInterval: ReturnType<typeof setInterval> | null = null
 
   function recalcElapsed() {
     if (!session.value) return
@@ -57,15 +59,36 @@ export function useClock() {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
   }
 
+  let notesDirty = false
+
   async function saveNotes() {
     const description = notes.value.join('\n')
+    notesSaveStatus.value = 'saving'
     try {
       await apiFetch('/clock/notes', {
         method: 'PUT',
         body: JSON.stringify({ description }),
       })
+      notesSaveStatus.value = 'saved'
+      notesDirty = false
     } catch {
-      // ignore
+      notesSaveStatus.value = 'error'
+    }
+  }
+
+  function startNotesSaveInterval() {
+    stopNotesSaveInterval()
+    notesSaveInterval = setInterval(() => {
+      if (notesDirty && active.value) {
+        saveNotes()
+      }
+    }, 60 * 1000)
+  }
+
+  function stopNotesSaveInterval() {
+    if (notesSaveInterval) {
+      clearInterval(notesSaveInterval)
+      notesSaveInterval = null
     }
   }
 
@@ -73,12 +96,20 @@ export function useClock() {
     const trimmed = text.trim()
     if (!trimmed) return
     notes.value = [...notes.value, trimmed]
+    notesDirty = true
     saveNotes()
   }
 
   function removeNote(index: number) {
     notes.value = notes.value.filter((_, i) => i !== index)
+    notesDirty = true
     saveNotes()
+  }
+
+  function retrySaveNotes() {
+    if (notesSaveStatus.value === 'error') {
+      saveNotes()
+    }
   }
 
   function getDescription(): string {
@@ -96,14 +127,19 @@ export function useClock() {
         } else {
           notes.value = []
         }
+        notesSaveStatus.value = 'saved'
+        notesDirty = false
         startTimer()
+        startNotesSaveInterval()
       } else {
         active.value = false
         session.value = null
         elapsed.value = 0
         segmentElapsed.value = 0
         notes.value = []
+        notesSaveStatus.value = 'saved'
         stopTimer()
+        stopNotesSaveInterval()
         if (data.autoClosedSession) {
           autoClosedSession.value = data.autoClosedSession
         }
@@ -131,7 +167,9 @@ export function useClock() {
       segmentSeconds: 0,
     }
     notes.value = []
+    notesSaveStatus.value = 'saved'
     startTimer()
+    startNotesSaveInterval()
   }
 
   async function switchProject(projectId: string, description: string, workType?: string) {
@@ -153,6 +191,7 @@ export function useClock() {
     elapsed.value = 0
     segmentElapsed.value = 0
     stopTimer()
+    stopNotesSaveInterval()
     return data
   }
 
@@ -167,6 +206,7 @@ export function useClock() {
     segmentElapsed,
     autoClosedSession,
     notes,
+    notesSaveStatus,
     formatElapsed,
     checkStatus,
     clockIn,
@@ -175,6 +215,7 @@ export function useClock() {
     dismissAutoClosed,
     addNote,
     removeNote,
+    retrySaveNotes,
     getDescription,
   }
 }
